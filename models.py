@@ -383,3 +383,12 @@ class ModeloARIMA(ModeloBase):
                 'error': str(e),
                 'precisao': 0
             }
+
+
+
+
+
+
+
+
+
