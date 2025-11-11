@@ -198,7 +198,7 @@ class DataHandler:
             excel_file = pd.ExcelFile(self.uploaded_file)
             available_sheets = excel_file.sheet_names
             
-            st.info(f"📄 Sheets found: {', '.join(available_sheets)}")
+            # st.info(f"📄 Sheets found: {', '.join(available_sheets)}")
             
             # Validate required sheets
             required_sheets = list(self.REQUIRED_SHEETS.values())
@@ -246,7 +246,7 @@ class DataHandler:
                     
                 self.dataframes['main'] = df_main
                 
-                st.success(f"✅ Forecast start date: {self.forecast_start_date}")
+                # st.success(f"✅ Forecast start date: {self.forecast_start_date}")
             
             # Load LogicsxMonth sheet
             with st.spinner("Loading 'LogicsxMonth' sheet..."):
