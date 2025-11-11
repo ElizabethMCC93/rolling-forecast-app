@@ -83,7 +83,7 @@ st.markdown("""
 
 # Main header
 st.markdown('<h1 class="main-header">Rolling Collection Tool</h1>', unsafe_allow_html=True)
-st.markdown("### 📊 Statistical Models + Launch Logic for Sales Forecasting")
+st.markdown("### 📊 Statistical Models")
 st.markdown("---")
 
 
@@ -193,19 +193,60 @@ def mostrar_info_carga(data_handler):
             st.dataframe(df.head(15), use_container_width=True)
 
 
-def extraer_valores_unicos(df_resultado, customer_col, model_col):
+# def extraer_valores_unicos(df_resultado, customer_col, model_col):
+#     """Extract unique values for filters"""
+    
+#     customers = []
+#     models = []
+    
+#     if customer_col and customer_col in df_resultado.columns:
+#         customers = sorted(df_resultado[customer_col].dropna().unique().tolist())
+    
+#     if model_col and model_col in df_resultado.columns:
+#         models = sorted(df_resultado[model_col].dropna().unique().tolist())
+    
+#     return customers, models
+
+
+
+def extraer_valores_unicos(df_resultado, customer_col, product_code_col):
     """Extract unique values for filters"""
     
     customers = []
-    models = []
+    product_codes = []
     
     if customer_col and customer_col in df_resultado.columns:
-        customers = sorted(df_resultado[customer_col].dropna().unique().tolist())
+        # Convert to string to handle mixed types, then sort
+        customers = sorted([str(x) for x in df_resultado[customer_col].dropna().unique().tolist()])
     
-    if model_col and model_col in df_resultado.columns:
-        models = sorted(df_resultado[model_col].dropna().unique().tolist())
+    if product_code_col and product_code_col in df_resultado.columns:
+        # Convert to string to handle mixed types, then sort
+        product_codes = sorted([str(x) for x in df_resultado[product_code_col].dropna().unique().tolist()])
     
-    return customers, models
+    return customers, product_codes
+
+
+
+
+
+
+
+
+# def aplicar_filtros(df: pd.DataFrame, customer_col: str, model_col: str, 
+#                    selected_customers: list, selected_models: list) -> pd.DataFrame:
+#     """Apply filters to dataframe"""
+    
+#     df_filtered = df.copy()
+    
+#     # Filter by customers
+#     if selected_customers and len(selected_customers) > 0 and customer_col and customer_col in df_filtered.columns:
+#         df_filtered = df_filtered[df_filtered[customer_col].isin(selected_customers)]
+    
+#     # Filter by models
+#     if selected_models and len(selected_models) > 0 and model_col and model_col in df_filtered.columns:
+#         df_filtered = df_filtered[df_filtered[model_col].isin(selected_models)]
+    
+#     return df_filtered
 
 
 def aplicar_filtros(df: pd.DataFrame, customer_col: str, model_col: str, 
@@ -214,15 +255,20 @@ def aplicar_filtros(df: pd.DataFrame, customer_col: str, model_col: str,
     
     df_filtered = df.copy()
     
-    # Filter by customers
+    # Filter by customers - Convert both sides to string for comparison
     if selected_customers and len(selected_customers) > 0 and customer_col and customer_col in df_filtered.columns:
-        df_filtered = df_filtered[df_filtered[customer_col].isin(selected_customers)]
+        df_filtered = df_filtered[df_filtered[customer_col].astype(str).isin(selected_customers)]
     
-    # Filter by models
+    # Filter by models - Convert both sides to string for comparison
     if selected_models and len(selected_models) > 0 and model_col and model_col in df_filtered.columns:
-        df_filtered = df_filtered[df_filtered[model_col].isin(selected_models)]
+        df_filtered = df_filtered[df_filtered[model_col].astype(str).isin(selected_models)]
     
     return df_filtered
+
+
+
+
+
 
 
 def crear_grafico_consolidado(resultados: dict, df_filtered_dict: dict):
@@ -345,11 +391,21 @@ def mostrar_resultados(resultados):
     """Display forecasting results with global filters and consolidated chart"""
     
     st.header("📊 Forecast Results")
+
+
+    # # Clear filters if flag is set (must be before creating widgets)
+    # if 'do_clear_filters' in st.session_state and st.session_state.do_clear_filters:
+    #     if 'global_customer_filter' in st.session_state:
+    #         del st.session_state['global_customer_filter']
+    #     if 'global_model_filter' in st.session_state:
+    #         del st.session_state['global_model_filter']
+    #     st.session_state.do_clear_filters = False
+
     
     # General summary
     total_cells = sum([r.get('celulas_actualizadas', 0) for r in resultados.values()])
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("📝 Total Cells Updated", f"{total_cells:,}")
     with col2:
@@ -359,10 +415,10 @@ def mostrar_resultados(resultados):
             first_result = list(resultados.values())[0]
             forecast_months = first_result.get('metadata', {}).get('forecast_months', 18)
             st.metric("📅 Forecast Horizon", f"{forecast_months} months")
-    with col4:
-        # Total execution time
-        total_time = sum([r.get('metadata', {}).get('execution_time', 0) for r in resultados.values()])
-        st.metric("⏱️ Total Time", f"{total_time:.1f}s")
+    # with col4:
+    #     # Total execution time
+    #     total_time = sum([r.get('metadata', {}).get('execution_time', 0) for r in resultados.values()])
+    #     st.metric("⏱️ Total Time", f"{total_time:.1f}s")
     
     # Get first dataframe to extract column names for filters
     first_df = None
@@ -395,8 +451,8 @@ def mostrar_resultados(resultados):
     # GLOBAL FILTER SECTION
     # ==========================================
     st.markdown("---")
-    st.markdown('<div class="filter-section">', unsafe_allow_html=True)
-    st.subheader("🔍 Global Filters")
+    # st.markdown('<div class="filter-section">', unsafe_allow_html=True)
+    st.subheader("🔍 Global filters")
     st.markdown("*Apply filters to all models and update the consolidated chart*")
     
     filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 1])
@@ -404,7 +460,7 @@ def mostrar_resultados(resultados):
     with filter_col1:
         if len(customers_list) > 0:
             selected_customers = st.multiselect(
-                "📍 Filter by Customer ID",
+                "Filter by Customer ID",
                 options=customers_list,
                 default=[],
                 key="global_customer_filter",
@@ -417,7 +473,7 @@ def mostrar_resultados(resultados):
     with filter_col2:
         if len(models_list) > 0:
             selected_models = st.multiselect(
-                "🏷️ Filter by Product Model",
+                "Filter by Product Model",
                 options=models_list,
                 default=[],
                 key="global_model_filter",
@@ -427,13 +483,29 @@ def mostrar_resultados(resultados):
             selected_models = []
             st.info("ℹ️ No product models found in results")
     
-    with filter_col3:
-        st.write("")
-        st.write("")
-        if st.button("🔄 Clear All Filters", key="clear_global", use_container_width=True):
-            # Clear filter values by resetting keys
-            st.session_state.global_customer_filter = []
-            st.session_state.global_model_filter = []
+    # with filter_col3:
+    #     st.write("")
+    #     st.write("")
+    #     if st.button("🔄 Clear All Filters", key="clear_global", use_container_width=True):
+    #         # Clear filter values by using del and rerun
+    #         if 'global_customer_filter' in st.session_state:
+    #             del st.session_state['global_customer_filter']
+    #         if 'global_model_filter' in st.session_state:
+    #             del st.session_state['global_model_filter']
+    #         st.rerun()
+
+
+    # with filter_col3:
+    #     st.write("")
+    #     st.write("")
+    #     if st.button("🔄 Clear All Filters", key="clear_global", use_container_width=True):
+    #         st.session_state.do_clear_filters = True
+    #         st.rerun()
+
+
+
+
+
     
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -584,29 +656,8 @@ def mostrar_pantalla_bienvenida():
         - Columns A-H: Product characteristics
         - Columns I+: Monthly sales history
         - Data starts from row 3
-        """)
-    
-    # with col2:
-    #     st.markdown("""
-    #     **⚙️ Sheet: LogicsxMonth**
-    #     - Row 2: Column headers
-    #     - Column C: Class
-    #     - Column D: Month (dd/mm/yyyy)
-    #     - Column E: Calculation Base
-    #     - Column G: P2P Model
-    #     - Column H: Launch Month (XF)
-    #     - Data starts from row 3
-    #     """)
-    
-    # with col3:
-    #     st.markdown("""
-    #     **🔗 Sheet: Relations**
-    #     - Row 8: Year headers
-    #     - Column A: ID Customer (from row 9)
-    #     - Columns B+: Growth factors by year
-    #     - Factor values (e.g., 1.05 = 5% growth)
-    #     """)
-    
+        """)   
+        
     st.markdown("---")
     
         
@@ -685,7 +736,7 @@ def main():
                 st.exception(e)
     
     # Display results if they exist in session state
-    if st.session_state.resultados is not None:
+    if st.session_state.resultados is not None: 
         mostrar_resultados(st.session_state.resultados)
 
 
