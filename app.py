@@ -83,7 +83,7 @@ st.markdown("""
 
 # Main header
 st.markdown('<h1 class="main-header">Rolling Collection Tool</h1>', unsafe_allow_html=True)
-st.markdown("### 📊 Statistical Models")
+# st.markdown("### 📊 Statistical Models")
 st.markdown("---")
 
 
@@ -110,7 +110,7 @@ def configurar_sidebar():
             )
         
         # Model selection
-        st.subheader("🔧 Models to Execute")
+        st.subheader("🔧 Models to execute")
         modelo_media = st.checkbox("Moving Average", True, 
                                     help="Seasonal moving average with growth factors")
         modelo_suavizacao = st.checkbox("Exponential Smoothing", True,
@@ -160,7 +160,7 @@ def mostrar_info_carga(data_handler):
     
     # Display forecast start date
     if forecast_start:
-        st.info(f"📅 **Forecast Start Date:** {forecast_start.strftime('%B %d, %Y')}")
+        st.info(f"📅 **Forecast start date:** {forecast_start.strftime('%B %d, %Y')}")
     
     # DataFrame metrics
     col1, col2, col3 = st.columns(3)
@@ -390,16 +390,7 @@ def crear_grafico_consolidado(resultados: dict, df_filtered_dict: dict):
 def mostrar_resultados(resultados):
     """Display forecasting results with global filters and consolidated chart"""
     
-    st.header("📊 Forecast Results")
-
-
-    # # Clear filters if flag is set (must be before creating widgets)
-    # if 'do_clear_filters' in st.session_state and st.session_state.do_clear_filters:
-    #     if 'global_customer_filter' in st.session_state:
-    #         del st.session_state['global_customer_filter']
-    #     if 'global_model_filter' in st.session_state:
-    #         del st.session_state['global_model_filter']
-    #     st.session_state.do_clear_filters = False
+    st.header("📊 Forecast results")
 
     
     # General summary
@@ -460,7 +451,7 @@ def mostrar_resultados(resultados):
     with filter_col1:
         if len(customers_list) > 0:
             selected_customers = st.multiselect(
-                "Filter by Customer ID",
+                "Filter by ID Customer",
                 options=customers_list,
                 default=[],
                 key="global_customer_filter",
@@ -551,7 +542,7 @@ def mostrar_resultados(resultados):
     # INDIVIDUAL MODEL TABS
     # ==========================================
     st.markdown("---")
-    st.subheader("📋 Detailed Results by Model")
+    st.subheader("📋 Detailed results by model")
     
     tab_names = []
     for modelo in resultados.keys():
@@ -583,12 +574,13 @@ def mostrar_resultados(resultados):
             df_filtered = df_filtered_dict.get(modelo_key, df_resultado)
             
             # Results table
-            st.subheader("📊 Results Table")
+            st.subheader("📊 Results table")
             
             if not df_filtered.empty:
                 # Show filtered results
                 if df_filtered.shape[1] > 20:
-                    cols_to_show = list(df_filtered.columns[:8]) + list(df_filtered.columns[-10:])
+                    # cols_to_show = list(df_filtered.columns[:8]) + list(df_filtered.columns[-10:])
+                    cols_to_show = list(df_filtered.columns[:8]) + list(df_filtered.columns[-18:])
                     df_display = df_filtered[cols_to_show]
                 else:
                     df_display = df_filtered
@@ -644,7 +636,7 @@ def mostrar_pantalla_bienvenida():
     
     st.info("📤 **Please load the consolidated Excel file to begin.**")
     
-    st.markdown("### 📋 Required File Structure:")
+    st.markdown("### 📋 Required file structure:")
     
     col1, col2, col3 = st.columns(3)
     
