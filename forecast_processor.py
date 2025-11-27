@@ -21,9 +21,9 @@
 #     CALC_BASE_NO_CALC = "Não calcula"
 #     CALC_BASE_LAUNCH_DEPENDENT = "Depende do mês de Lançamento"
     
-#     # DEBUG: Target record
-#     DEBUG_TARGET_MODEL = "4145766"
-#     DEBUG_TARGET_CUSTOMER = "ALPASHOP"
+#     # DEBUG: Target record - UPDATED
+#     DEBUG_TARGET_MODEL = "TC0001973"
+#     DEBUG_TARGET_CUSTOMER = "ATACADO ESPECIALIZADO"
     
 #     def __init__(self, dataframes: Dict[str, pd.DataFrame], forecast_start_date: datetime, parametros: Dict[str, Any]):
 #         """
@@ -66,6 +66,7 @@
 #         # DEBUG: Log initialization
 #         print(f"\n{'='*80}")
 #         print(f"🔍 FORECAST PROCESSOR INITIALIZED")
+#         print(f"  DEBUG TARGET: Model={self.DEBUG_TARGET_MODEL}, Customer={self.DEBUG_TARGET_CUSTOMER}")
 #         print(f"  Forecast Start: {self.forecast_start_date.strftime('%Y-%m-%d')}")
 #         print(f"  Forecast Months: {self.forecast_months}")
 #         if len(self.date_columns) > 0:
@@ -102,9 +103,9 @@
 #         column_variations = {
 #             'customer': ['ID Cliente', 'ID Customer', 'Customer', 'Cliente', 'ID_Customer', 'IDCustomer'],
 #             'product_model': ['Modelo do Produto', 'Product Model', 'Model', 'Modelo', 'Product_Model'],
-#             'class': ['Classe', 'Class', 'CLASSE', 'CLASS', 'Clase'],
+#             'class': ['Classe', 'Class', 'CLASSE', 'CLASS', 'Clase', 'Tipo de producto', 'Tipo'],
 #             'description': ['Descrição do Produto', 'Product Description', 'Description', 'Descrição', 'Product_Description'],
-#             'calc_base': ['Base de Cálculo', 'Base de Calculo', 'Calculation Base', 'Base', 'Calculation_Base', 'Base Calculo'],
+#             'calc_base': ['Base de Cálculo', 'Base de Calculo', 'Calculation Base', 'Base', 'Calculation_Base', 'Base Calculo', 'Base de cálculo'],
 #             'month': ['Mês', 'Mes', 'Month', 'MÊS', 'MONTH', 'MES'],
 #             'forecast_start_month': [
 #                 'Mês Início Previsão', 'Mes Inicio Prevision', 'Forecast Start Month', 
@@ -281,7 +282,11 @@
 #         return pd.Series(dtype=float)
     
 #     def _determine_historical_series(self, idx: int, row: pd.Series, datos: Dict) -> pd.Series:
-#         """Determine which historical series to use based on column G (reference model)"""
+#         """
+#         Determine which historical series to use based on column G (reference model)
+        
+#         ENHANCED DEBUG: Shows clearly if using reference or own series
+#         """
 #         col_names = datos['col_names']
 #         customer_col = col_names.get('main_customer')
 #         model_col = col_names.get('main_product_model')
@@ -295,8 +300,8 @@
         
 #         if is_debug_target:
 #             print(f"\n{'='*80}")
-#             print(f"🔍 DETERMINE SERIES")
-#             print(f"  Model: {product_model}")
+#             print(f"🔍 DETERMINE HISTORICAL SERIES")
+#             print(f"  Current Model (Col B): '{product_model}'")
         
 #         # Check if there's a reference product in column G
 #         reference_model = None
@@ -307,31 +312,35 @@
 #                 product_model_str = str(product_model).strip()
                 
 #                 if is_debug_target:
-#                     print(f"  Ref (Col G): '{reference_str}'")
-#                     print(f"  Current (Col B): '{product_model_str}'")
+#                     print(f"  Reference Model (Col G): '{reference_str}'")
                 
 #                 if reference_str != '' and reference_str != '-' and reference_str != product_model_str:
 #                     reference_model = reference_str
 #                     if is_debug_target:
-#                         print(f"  ✅ USE REFERENCE: {reference_model}")
+#                         print(f"  ✅ DECISION: USE REFERENCE '{reference_model}'")
+#                         print(f"     (Will search for Customer={customer} + Model={reference_model})")
         
 #         # Get historical series
 #         if reference_model:
 #             historical_series = self._get_reference_product_series(customer, reference_model, datos)
 #             if len(historical_series) == 0 or historical_series.isna().all():
 #                 if is_debug_target:
-#                     print(f"  ⚠️ Ref not found, fallback to OWN")
+#                     print(f"  ⚠️ REFERENCE NOT FOUND - Fallback to OWN series")
 #                 historical_series = self._get_historical_series_indexed(idx, datos)
 #         else:
 #             if is_debug_target:
-#                 print(f"  ✅ USE OWN series")
+#                 print(f"  ✅ DECISION: USE OWN series (no reference)")
 #             historical_series = self._get_historical_series_indexed(idx, datos)
         
 #         if is_debug_target:
 #             non_null = historical_series.dropna()
-#             print(f"  Series: {len(non_null)} values")
+#             print(f"  RESULT:")
+#             print(f"    Total values: {len(non_null)}")
 #             if len(non_null) > 0:
-#                 print(f"  Range: {non_null.index.min().strftime('%Y-%m')} to {non_null.index.max().strftime('%Y-%m')}")
+#                 print(f"    Date range: {non_null.index.min().strftime('%Y-%m')} to {non_null.index.max().strftime('%Y-%m')}")
+#                 print(f"    Sample: {dict(list(non_null.head(3).items()))}")
+#             else:
+#                 print(f"    ❌ NO DATA FOUND")
 #             print(f"{'='*80}\n")
         
 #         return historical_series
@@ -567,9 +576,6 @@
 #             pass
         
 #         return pd.Series(dtype=float)
-
-
-
 
 
 
@@ -947,7 +953,11 @@ class ForecastProcessor:
         if modelos_ejecutar.get('suavizacao_exponencial', False):
             with st.spinner("📊 Executing Exponential Smoothing..."):
                 start_time = time.time()
-                resultados['suavizacao_exponencial'] = self.exponential_smoothing_model.execute(datos_preparados)
+                # Pass Moving Average results for series extension
+                resultados['suavizacao_exponencial'] = self.exponential_smoothing_model.execute(
+                    datos_preparados, 
+                    moving_avg_result=resultados.get('media_movil')
+                )
                 resultados['suavizacao_exponencial']['metadata']['execution_time'] = time.time() - start_time
         
         # Execute ARIMA
