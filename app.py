@@ -803,9 +803,9 @@ def configurar_sidebar():
         
         # Model selection
         st.subheader("🔧 Models to execute")
-        modelo_media = st.checkbox("Moving Average", True, 
+        modelo_media = st.checkbox("Moving average", True, 
                                     help="Seasonal moving average with growth factors")
-        modelo_suavizacao = st.checkbox("Exponential Smoothing", True,
+        modelo_suavizacao = st.checkbox("Exponential smoothing", True,
                                         help="Holt-Winters exponential smoothing")
         modelo_arima = st.checkbox("SARIMA", False,
                                    help="Seasonal ARIMA time series model")
@@ -821,7 +821,7 @@ def configurar_sidebar():
             
             # Model Type Selection
             smoothing_type = st.selectbox(
-                "Model Type",
+                "Model type",
                 ["Holt-Winters (Triple)", "Holt's Linear (Double)", "Simple (SES)"],
                 index=0,
                 help="• Triple: Level + Trend + Seasonality\n• Double: Level + Trend\n• Simple: Level only"
@@ -985,8 +985,8 @@ def crear_grafico_consolidado(resultados: dict, df_filtered_dict: dict):
     }
     
     names = {
-        'media_movil': 'Moving Average',
-        'suavizacao_exponencial': 'Exponential Smoothing',
+        'media_movil': 'Moving average',
+        'suavizacao_exponencial': 'Exponential smoothing',
         'arima': 'SARIMA'
     }
     
@@ -1184,9 +1184,9 @@ def mostrar_resultados(resultados):
     tab_names = []
     for modelo in resultados.keys():
         if modelo == 'media_movil':
-            tab_names.append("Moving Average")
+            tab_names.append("Moving average")
         elif modelo == 'suavizacao_exponencial':
-            tab_names.append("Exponential Smoothing")
+            tab_names.append("Exponential smoothing")
         elif modelo == 'arima':
             tab_names.append("SARIMA")
     
