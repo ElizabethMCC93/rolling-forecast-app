@@ -1,5 +1,6 @@
 # """
 # Main User Interface - Streamlit App with Filters and Consolidated Chart
+# UPDATED: Enhanced Exponential Smoothing parameters configuration
 # """
 # import streamlit as st
 # import pandas as pd
@@ -37,7 +38,8 @@
 # <style>
 #     .main-header {
 #         font-size: 2.5rem;
-#         color: #FF6B6B;
+#         # color: #FF6B6B;
+#         color: #279c56;
 #         text-align: center;
 #         margin-bottom: 2rem;
 #     }
@@ -83,7 +85,6 @@
 
 # # Main header
 # st.markdown('<h1 class="main-header">Rolling Collection Tool</h1>', unsafe_allow_html=True)
-# # st.markdown("### 📊 Statistical Models")
 # st.markdown("---")
 
 
@@ -91,10 +92,10 @@
 #     """Configure sidebar with all controls"""
     
 #     with st.sidebar:
-#         st.header("⚙️ Configuration")
+#         # st.header("⚙️ Configuration")
         
 #         # File upload
-#         st.subheader("📁 Load File")
+#         st.subheader("📁 Load file")
 #         uploaded_file = st.file_uploader(
 #             "Consolidated Excel File", 
 #             type=['xlsx'],
@@ -102,18 +103,18 @@
 #             key="file_uploader"
 #         )
         
-#         if uploaded_file is None:
-#             st.markdown(
-#                 '<div class="warning-box">📋 <strong>Required sheets:</strong><br>'
-#                 '• Main (sales data)<br>• LogicsxMonth (logic rules)<br>• Relations (growth factors)</div>', 
-#                 unsafe_allow_html=True
-#             )
+#         # if uploaded_file is None:
+#         #     st.markdown(
+#         #         '<div class="warning-box">📋 <strong>Required sheets:</strong><br>'
+#         #         '• Main (sales data)<br>• LogicsxMonth (logic rules)<br>• Relations (growth factors)</div>', 
+#         #         unsafe_allow_html=True
+#         #     )
         
 #         # Model selection
 #         st.subheader("🔧 Models to execute")
-#         modelo_media = st.checkbox("Moving Average", True, 
+#         modelo_media = st.checkbox("Moving average", True, 
 #                                     help="Seasonal moving average with growth factors")
-#         modelo_suavizacao = st.checkbox("Exponential Smoothing", True,
+#         modelo_suavizacao = st.checkbox("Exponential smoothing", True,
 #                                         help="Holt-Winters exponential smoothing")
 #         modelo_arima = st.checkbox("SARIMA", False,
 #                                    help="Seasonal ARIMA time series model")
@@ -123,15 +124,70 @@
         
 #         parametros = {}
         
+#         # ==================== EXPONENTIAL SMOOTHING PARAMETERS ====================
 #         if modelo_suavizacao:
-#             parametros['alpha'] = st.slider(
-#                 "Alpha (Smoothing Factor)", 
-#                 0.1, 0.9, 0.3, 0.1,
-#                 help="Smoothing factor (0.1 = smoother, 0.9 = more reactive)"
+#             st.markdown("**Exponential smoothing:**")
+            
+#             # Model Type Selection
+#             smoothing_type = st.selectbox(
+#                 "Model type",
+#                 ["Holt-Winters (Triple)", "Holt's Linear (Double)", "Simple (SES)"],
+#                 index=0,
+#                 help="• Triple: Level + Trend + Seasonality\n• Double: Level + Trend\n• Simple: Level only"
 #             )
+#             parametros['smoothing_type'] = smoothing_type
+            
+#             # Create columns for parameters
+#             col1, col2 = st.columns(2)
+            
+#             with col1:
+#                 # Alpha (always present)
+#                 parametros['alpha'] = st.slider(
+#                     "α (Level)", 
+#                     0.01, 0.99, 0.30, 0.01,
+#                     help="Smoothing factor for level\n• 0.1-0.3: Smooth (more weight to past)\n• 0.7-0.9: Reactive (more weight to recent)"
+#                 )
+                
+#                 # Beta (only for Double and Triple)
+#                 if smoothing_type in ["Holt's Linear (Double)", "Holt-Winters (Triple)"]:
+#                     parametros['beta'] = st.slider(
+#                         "β (Trend)", 
+#                         0.01, 0.50, 0.10, 0.01,
+#                         help="Smoothing factor for trend\n• Typical: 0.1-0.3 (more conservative than alpha)"
+#                     )
+            
+#             with col2:
+#                 # Gamma and Seasonality Type (only for Triple)
+#                 if smoothing_type == "Holt-Winters (Triple)":
+#                     parametros['gamma'] = st.slider(
+#                         "γ (Seasonality)", 
+#                         0.01, 0.50, 0.10, 0.01,
+#                         help="Smoothing factor for seasonality\n• Typical: 0.1-0.2 (very conservative)"
+#                     )
+                    
+#                     seasonal_type = st.selectbox(
+#                         "Seasonality Type",
+#                         ["Additive", "Multiplicative"],
+#                         index=0,
+#                         help="• Additive: Constant seasonal variations\n• Multiplicative: Proportional seasonal variations"
+#                     )
+#                     parametros['seasonal_type'] = 'add' if seasonal_type == "Additive" else 'mul'
+            
+#             # Info box with model explanation
+#             if smoothing_type == "Simple (SES)":
+#                 pass
+#                 # st.info("ℹ️ **Simple Exponential Smoothing**\nBest for: Flat series without trend or seasonality")
+#             elif smoothing_type == "Holt's Linear (Double)":
+#                 pass
+#                 # st.info("ℹ️ **Holt's Linear Method**\nBest for: Series with trend but no seasonality")
+#             else:
+#                 seasonal_desc = "constant" if parametros.get('seasonal_type') == 'add' else "proportional"
+#                 # st.info(f"ℹ️ **Holt-Winters Triple**\nBest for: Series with trend and {seasonal_desc} seasonality")
         
+#         # ==================== ARIMA PARAMETERS ====================
 #         if modelo_arima:
-#             st.write("**ARIMA Parameters (p,d,q):**")
+#             st.markdown("---")
+#             st.markdown("**SARIMA:**")
 #             col1, col2, col3 = st.columns(3)
 #             with col1:
 #                 p = st.selectbox("p (AR)", [0, 1, 2, 3], 1)
@@ -142,7 +198,6 @@
 #             parametros['arima_params'] = (p, d, q)
         
 #         st.markdown("---")       
-        
         
 #         return uploaded_file, modelo_media, modelo_suavizacao, modelo_arima, parametros
 
@@ -193,8 +248,6 @@
 #             st.dataframe(df.head(15), use_container_width=True)
 
 
-
-
 # def extraer_valores_unicos(df_resultado, customer_col, product_code_col):
 #     """Extract unique values for filters"""
     
@@ -202,16 +255,12 @@
 #     product_codes = []
     
 #     if customer_col and customer_col in df_resultado.columns:
-#         # Convert to string to handle mixed types, then sort
 #         customers = sorted([str(x) for x in df_resultado[customer_col].dropna().unique().tolist()])
     
 #     if product_code_col and product_code_col in df_resultado.columns:
-#         # Convert to string to handle mixed types, then sort
 #         product_codes = sorted([str(x) for x in df_resultado[product_code_col].dropna().unique().tolist()])
     
 #     return customers, product_codes
-
-
 
 
 # def aplicar_filtros(df: pd.DataFrame, customer_col: str, model_col: str, 
@@ -220,31 +269,17 @@
     
 #     df_filtered = df.copy()
     
-#     # Filter by customers - Convert both sides to string for comparison
 #     if selected_customers and len(selected_customers) > 0 and customer_col and customer_col in df_filtered.columns:
 #         df_filtered = df_filtered[df_filtered[customer_col].astype(str).isin(selected_customers)]
     
-#     # Filter by models - Convert both sides to string for comparison
 #     if selected_models and len(selected_models) > 0 and model_col and model_col in df_filtered.columns:
 #         df_filtered = df_filtered[df_filtered[model_col].astype(str).isin(selected_models)]
     
 #     return df_filtered
 
 
-
-
-
-
-
 # def crear_grafico_consolidado(resultados: dict, df_filtered_dict: dict):
-#     """
-#     Create consolidated interactive chart with all forecast models
-#     Users can show/hide individual series by clicking on legend
-    
-#     Args:
-#         resultados: Dictionary with all model results
-#         df_filtered_dict: Dictionary with filtered dataframes for each model
-#     """
+#     """Create consolidated interactive chart with all forecast models"""
     
 #     if not PLOTLY_AVAILABLE:
 #         st.warning("⚠️ Plotly not available for charts. Please install: pip install plotly")
@@ -252,35 +287,30 @@
     
 #     fig = go.Figure()
     
-#     # Colors for each model
 #     colors = {
 #         'media_movil': '#FF6B6B',
 #         'suavizacao_exponencial': '#4ECDC4',
 #         'arima': '#95E1D3'
 #     }
     
-#     # Names for each model
 #     names = {
-#         'media_movil': 'Moving Average',
-#         'suavizacao_exponencial': 'Exponential Smoothing',
+#         'media_movil': 'Moving average',
+#         'suavizacao_exponencial': 'Exponential smoothing',
 #         'arima': 'SARIMA'
 #     }
     
 #     has_data = False
     
-#     # Add trace for each model
 #     for modelo_key, df_filtered in df_filtered_dict.items():
         
 #         if df_filtered.empty:
 #             continue
         
-#         # Get date columns (forecast columns)
 #         date_cols = [col for col in df_filtered.columns if isinstance(col, datetime)]
         
 #         if not date_cols:
 #             continue
         
-#         # Calculate total by month
 #         forecast_summary = df_filtered[date_cols].sum()
         
 #         if len(forecast_summary) == 0 or forecast_summary.sum() == 0:
@@ -288,7 +318,6 @@
         
 #         has_data = True
         
-#         # Add trace with show/hide capability
 #         fig.add_trace(go.Scatter(
 #             x=[d.strftime('%Y-%m') for d in forecast_summary.index],
 #             y=forecast_summary.values,
@@ -296,7 +325,7 @@
 #             name=names.get(modelo_key, modelo_key),
 #             line=dict(color=colors.get(modelo_key, '#999999'), width=3),
 #             marker=dict(size=8),
-#             visible=True,  # All visible by default
+#             visible=True,
 #             hovertemplate='<b>%{fullData.name}</b><br>' +
 #                          'Month: %{x}<br>' +
 #                          'Units: %{y:,.0f}<br>' +
@@ -307,10 +336,9 @@
 #         st.warning("⚠️ No data available to display in chart. Try adjusting filters or check if models generated results.")
 #         return
     
-#     # Update layout with better styling
 #     fig.update_layout(
 #         title={
-#             'text': "📊 Consolidated Forecast Comparison - All Models",
+#             'text': "",
 #             'x': 0.5,
 #             'xanchor': 'center',
 #             'font': {'size': 22, 'color': '#2c3e50', 'family': 'Arial Black'}
@@ -349,16 +377,13 @@
 #     )
     
 #     st.plotly_chart(fig, use_container_width=True)
-    
-    
+
 
 # def mostrar_resultados(resultados):
 #     """Display forecasting results with global filters and consolidated chart"""
     
 #     st.header("📊 Forecast results")
-
     
-#     # General summary
 #     total_cells = sum([r.get('celulas_actualizadas', 0) for r in resultados.values()])
     
 #     col1, col2, col3 = st.columns(3)
@@ -371,12 +396,7 @@
 #             first_result = list(resultados.values())[0]
 #             forecast_months = first_result.get('metadata', {}).get('forecast_months', 18)
 #             st.metric("📅 Forecast Horizon", f"{forecast_months} months")
-#     # with col4:
-#     #     # Total execution time
-#     #     total_time = sum([r.get('metadata', {}).get('execution_time', 0) for r in resultados.values()])
-#     #     st.metric("⏱️ Total Time", f"{total_time:.1f}s")
     
-#     # Get first dataframe to extract column names for filters
 #     first_df = None
 #     customer_col = None
 #     model_col = None
@@ -389,25 +409,18 @@
 #     if first_df is not None:
 #         for col in first_df.columns:
 #             col_str = str(col).lower()
-#             # if 'customer' in col_str or 'cliente' in col_str:
 #             if 'id' in col_str and 'customer' in col_str:
 #                 customer_col = col
-#             # if ('code' in col_str or 'modelo' in col_str) and 'product' in col_str:
 #             if 'product' in col_str and 'model' in col_str:
 #                 model_col = col
     
-#     # Extract unique values from first dataframe
 #     customers_list = []
 #     models_list = []
     
 #     if first_df is not None:
 #         customers_list, models_list = extraer_valores_unicos(first_df, customer_col, model_col)
     
-#     # ==========================================
-#     # GLOBAL FILTER SECTION
-#     # ==========================================
 #     st.markdown("---")
-#     # st.markdown('<div class="filter-section">', unsafe_allow_html=True)
 #     st.subheader("🔍 Global filters")
 #     st.markdown("*Apply filters to all models and update the consolidated chart*")
     
@@ -439,11 +452,8 @@
 #             selected_models = []
 #             st.info("ℹ️ No product models found in results")
     
-    
-    
 #     st.markdown('</div>', unsafe_allow_html=True)
     
-#     # Apply filters to all dataframes
 #     df_filtered_dict = {}
 #     total_products_filtered = 0
 #     total_products_original = 0
@@ -458,7 +468,6 @@
 #             total_products_original = len(df_resultado)
 #             total_products_filtered = len(df_filtered)
     
-#     # Show filter summary
 #     if len(selected_customers) > 0 or len(selected_models) > 0:
 #         filter_info = []
 #         if len(selected_customers) > 0:
@@ -470,9 +479,6 @@
 #     else:
 #         st.info(f"ℹ️ **No filters applied** - Showing all **{total_products_original:,}** products")
     
-#     # ==========================================
-#     # CONSOLIDATED CHART
-#     # ==========================================
 #     st.markdown("---")
 #     st.subheader("📈 Consolidated Forecast Chart - All Models")
     
@@ -481,18 +487,15 @@
 #     else:
 #         st.warning("⚠️ No data available for chart")
     
-#     # ==========================================
-#     # INDIVIDUAL MODEL TABS
-#     # ==========================================
 #     st.markdown("---")
 #     st.subheader("📋 Detailed results by model")
     
 #     tab_names = []
 #     for modelo in resultados.keys():
 #         if modelo == 'media_movil':
-#             tab_names.append("Moving Average")
+#             tab_names.append("Moving average")
 #         elif modelo == 'suavizacao_exponencial':
-#             tab_names.append("Exponential Smoothing")
+#             tab_names.append("Exponential smoothing")
 #         elif modelo == 'arima':
 #             tab_names.append("SARIMA")
     
@@ -516,26 +519,20 @@
 #             df_resultado = resultado['dataframe']
 #             df_filtered = df_filtered_dict.get(modelo_key, df_resultado)
             
-#             # Results table
 #             st.subheader("📊 Results table")
             
 #             if not df_filtered.empty:
-#                 # Show filtered results
 #                 if df_filtered.shape[1] > 20:
-#                     # cols_to_show = list(df_filtered.columns[:8]) + list(df_filtered.columns[-10:])
 #                     cols_to_show = list(df_filtered.columns[:8]) + list(df_filtered.columns[-18:])
 #                     df_display = df_filtered[cols_to_show]
 #                 else:
 #                     df_display = df_filtered
                 
 #                 st.dataframe(df_display.head(100), use_container_width=True)
-                
-#                 # Summary info
 #                 st.info(f"📊 Showing **{len(df_filtered):,}** products (Total: **{len(df_resultado):,}**)")
 #             else:
 #                 st.warning("⚠️ No data matches the selected filters")
             
-#             # Export section
 #             st.markdown("---")
 #             st.subheader("💾 Export Data")
             
@@ -544,7 +541,6 @@
 #             col_download1, col_download2 = st.columns(2)
             
 #             with col_download1:
-#                 # CSV download
 #                 csv = df_to_export.to_csv(index=False)
 #                 suffix = "_filtered" if len(df_filtered) < len(df_resultado) else "_full"
 #                 st.download_button(
@@ -556,7 +552,6 @@
 #                 )
             
 #             with col_download2:
-#                 # Excel download
 #                 try:
 #                     from io import BytesIO
 #                     buffer = BytesIO()
@@ -594,27 +589,20 @@
 #         """)   
         
 #     st.markdown("---")
-    
-        
-    
 
 
 # def main():
 #     """Main application function"""
     
-#     # Configure sidebar and get parameters
 #     uploaded_file, modelo_media, modelo_suavizacao, modelo_arima, parametros = configurar_sidebar()
     
-#     # If no file, show welcome screen
 #     if not uploaded_file:
 #         mostrar_pantalla_bienvenida()
-#         # Reset session state when no file
 #         st.session_state.resultados = None
 #         st.session_state.data_handler = None
 #         st.session_state.file_loaded = False
 #         return
     
-#     # Load data only if not already loaded or if different file
 #     if not st.session_state.file_loaded or st.session_state.data_handler is None:
 #         with st.spinner("🔄 Loading consolidated file..."):
 #             data_handler = DataHandler(uploaded_file)
@@ -624,34 +612,27 @@
 #                     st.error(error)
 #                 return
             
-#             # Store in session state
 #             st.session_state.data_handler = data_handler
 #             st.session_state.file_loaded = True
     
-#     # Use data_handler from session state
 #     data_handler = st.session_state.data_handler
     
-#     # Display load information
 #     mostrar_info_carga(data_handler)
     
-#     # Validate at least one model is selected
 #     if not any([modelo_media, modelo_suavizacao, modelo_arima]):
 #         st.warning("⚠️ Please select at least one model to execute.")
 #         return
     
-#     # Execute forecast button
 #     if st.button("Execute Forecast", type="primary", use_container_width=True):
         
 #         with st.spinner("Processing models... This may take a few minutes."):
 #             try:
-#                 # Create processor
 #                 processor = ForecastProcessor(
 #                     data_handler.obtener_dataframes(),
 #                     data_handler.obtener_fecha_inicio(),
 #                     parametros
 #                 )
                 
-#                 # Execute selected models
 #                 modelos_ejecutar = {
 #                     'media_movil': modelo_media,
 #                     'suavizacao_exponencial': modelo_suavizacao,
@@ -661,7 +642,6 @@
 #                 resultados = processor.ejecutar_forecast(modelos_ejecutar)
                 
 #                 if resultados:
-#                     # Store results in session state
 #                     st.session_state.resultados = resultados
 #                 else:
 #                     st.error("❌ Could not generate results. Please verify input data.")
@@ -670,7 +650,6 @@
 #                 st.error(f"❌ Error during processing: {str(e)}")
 #                 st.exception(e)
     
-#     # Display results if they exist in session state
 #     if st.session_state.resultados is not None: 
 #         mostrar_resultados(st.session_state.resultados)
 
@@ -684,14 +663,9 @@
 
 
 
-
-
-
-
-
 """
 Main User Interface - Streamlit App with Filters and Consolidated Chart
-UPDATED: Enhanced Exponential Smoothing parameters configuration
+UPDATED: Added preset models functionality
 """
 import streamlit as st
 import pandas as pd
@@ -729,7 +703,6 @@ st.markdown("""
 <style>
     .main-header {
         font-size: 2.5rem;
-        # color: #FF6B6B;
         color: #279c56;
         text-align: center;
         margin-bottom: 2rem;
@@ -783,114 +756,147 @@ def configurar_sidebar():
     """Configure sidebar with all controls"""
     
     with st.sidebar:
-        # st.header("⚙️ Configuration")
         
         # File upload
         st.subheader("📁 Load file")
         uploaded_file = st.file_uploader(
             "Consolidated Excel File", 
             type=['xlsx'],
-            help="Excel file with 3 sheets: Main, LogicsxMonth, and Relations",
+            help="Excel file with sheets: Main, LogicsxMonth, Relations, and Models",
             key="file_uploader"
         )
         
-        # if uploaded_file is None:
-        #     st.markdown(
-        #         '<div class="warning-box">📋 <strong>Required sheets:</strong><br>'
-        #         '• Main (sales data)<br>• LogicsxMonth (logic rules)<br>• Relations (growth factors)</div>', 
-        #         unsafe_allow_html=True
-        #     )
+        st.markdown("---")
         
-        # Model selection
+        # ==================== PRESET MODELS SECTION ====================
+        st.subheader("Model Selection Mode")
+        
+        # ALWAYS show this checkbox (assume Models sheet exists)
+        usar_preestablecidos = st.checkbox(
+            "Use preset models",
+            value=True,  # ACTIVE BY DEFAULT
+            help="Use best model per product from 'Models' sheet",
+            key="usar_preestablecidos_checkbox"
+        )
+        
+        st.markdown("---")
+        
+        # ==================== MANUAL MODEL SELECTION ====================
         st.subheader("🔧 Models to execute")
-        modelo_media = st.checkbox("Moving average", True, 
-                                    help="Seasonal moving average with growth factors")
-        modelo_suavizacao = st.checkbox("Exponential smoothing", True,
-                                        help="Holt-Winters exponential smoothing")
-        modelo_arima = st.checkbox("SARIMA", False,
-                                   help="Seasonal ARIMA time series model")
         
-        # Parameters
+        # Conditional behavior based on preset checkbox
+        if usar_preestablecidos:
+            # DISABLED when using presets
+            modelo_media = st.checkbox(
+                "Moving average", 
+                value=False,
+                disabled=True,
+                help="Disabled - Using preset models"
+            )
+            modelo_suavizacao = st.checkbox(
+                "Exponential smoothing", 
+                value=False,
+                disabled=True,
+                help="Disabled - Using preset models"
+            )
+            modelo_arima = st.checkbox(
+                "SARIMA", 
+                value=False,
+                disabled=True,
+                help="Disabled - Using preset models"
+            )
+        else:
+            # ENABLED when NOT using presets (ORIGINAL FLOW)
+            modelo_media = st.checkbox(
+                "Moving average", 
+                value=True, 
+                help="Seasonal moving average with growth factors"
+            )
+            modelo_suavizacao = st.checkbox(
+                "Exponential smoothing", 
+                value=True,
+                help="Holt-Winters exponential smoothing"
+            )
+            modelo_arima = st.checkbox(
+                "SARIMA", 
+                value=False,
+                help="Seasonal ARIMA time series model"
+            )
+        
+        # ==================== PARAMETERS ====================
+        st.markdown("---")
         st.subheader("⚙️ Parameters")
         
         parametros = {}
         
-        # ==================== EXPONENTIAL SMOOTHING PARAMETERS ====================
-        if modelo_suavizacao:
-            st.markdown("**Exponential smoothing:**")
+        # ONLY show parameters if NOT using presets
+        if not usar_preestablecidos:
             
-            # Model Type Selection
-            smoothing_type = st.selectbox(
-                "Model type",
-                ["Holt-Winters (Triple)", "Holt's Linear (Double)", "Simple (SES)"],
-                index=0,
-                help="• Triple: Level + Trend + Seasonality\n• Double: Level + Trend\n• Simple: Level only"
-            )
-            parametros['smoothing_type'] = smoothing_type
-            
-            # Create columns for parameters
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Alpha (always present)
-                parametros['alpha'] = st.slider(
-                    "α (Level)", 
-                    0.01, 0.99, 0.30, 0.01,
-                    help="Smoothing factor for level\n• 0.1-0.3: Smooth (more weight to past)\n• 0.7-0.9: Reactive (more weight to recent)"
-                )
+            # ==================== EXPONENTIAL SMOOTHING PARAMETERS ====================
+            if modelo_suavizacao:
+                st.markdown("**Exponential smoothing:**")
                 
-                # Beta (only for Double and Triple)
-                if smoothing_type in ["Holt's Linear (Double)", "Holt-Winters (Triple)"]:
-                    parametros['beta'] = st.slider(
-                        "β (Trend)", 
-                        0.01, 0.50, 0.10, 0.01,
-                        help="Smoothing factor for trend\n• Typical: 0.1-0.3 (more conservative than alpha)"
-                    )
-            
-            with col2:
-                # Gamma and Seasonality Type (only for Triple)
-                if smoothing_type == "Holt-Winters (Triple)":
-                    parametros['gamma'] = st.slider(
-                        "γ (Seasonality)", 
-                        0.01, 0.50, 0.10, 0.01,
-                        help="Smoothing factor for seasonality\n• Typical: 0.1-0.2 (very conservative)"
+                # Model Type Selection
+                smoothing_type = st.selectbox(
+                    "Model type",
+                    ["Holt-Winters (Triple)", "Holt's Linear (Double)", "Simple (SES)"],
+                    index=0,
+                    help="• Triple: Level + Trend + Seasonality\n• Double: Level + Trend\n• Simple: Level only"
+                )
+                parametros['smoothing_type'] = smoothing_type
+                
+                # Create columns for parameters
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Alpha (always present)
+                    parametros['alpha'] = st.slider(
+                        "α (Level)", 
+                        0.01, 0.99, 0.30, 0.01,
+                        help="Smoothing factor for level\n• 0.1-0.3: Smooth (more weight to past)\n• 0.7-0.9: Reactive (more weight to recent)"
                     )
                     
-                    seasonal_type = st.selectbox(
-                        "Seasonality Type",
-                        ["Additive", "Multiplicative"],
-                        index=0,
-                        help="• Additive: Constant seasonal variations\n• Multiplicative: Proportional seasonal variations"
-                    )
-                    parametros['seasonal_type'] = 'add' if seasonal_type == "Additive" else 'mul'
+                    # Beta (only for Double and Triple)
+                    if smoothing_type in ["Holt's Linear (Double)", "Holt-Winters (Triple)"]:
+                        parametros['beta'] = st.slider(
+                            "β (Trend)", 
+                            0.01, 0.50, 0.10, 0.01,
+                            help="Smoothing factor for trend\n• Typical: 0.1-0.3 (more conservative than alpha)"
+                        )
+                
+                with col2:
+                    # Gamma and Seasonality Type (only for Triple)
+                    if smoothing_type == "Holt-Winters (Triple)":
+                        parametros['gamma'] = st.slider(
+                            "γ (Seasonality)", 
+                            0.01, 0.50, 0.10, 0.01,
+                            help="Smoothing factor for seasonality\n• Typical: 0.1-0.2 (very conservative)"
+                        )
+                        
+                        seasonal_type = st.selectbox(
+                            "Seasonality Type",
+                            ["Additive", "Multiplicative"],
+                            index=0,
+                            help="• Additive: Constant seasonal variations\n• Multiplicative: Proportional seasonal variations"
+                        )
+                        parametros['seasonal_type'] = 'add' if seasonal_type == "Additive" else 'mul'
             
-            # Info box with model explanation
-            if smoothing_type == "Simple (SES)":
-                pass
-                # st.info("ℹ️ **Simple Exponential Smoothing**\nBest for: Flat series without trend or seasonality")
-            elif smoothing_type == "Holt's Linear (Double)":
-                pass
-                # st.info("ℹ️ **Holt's Linear Method**\nBest for: Series with trend but no seasonality")
-            else:
-                seasonal_desc = "constant" if parametros.get('seasonal_type') == 'add' else "proportional"
-                # st.info(f"ℹ️ **Holt-Winters Triple**\nBest for: Series with trend and {seasonal_desc} seasonality")
-        
-        # ==================== ARIMA PARAMETERS ====================
-        if modelo_arima:
-            st.markdown("---")
-            st.markdown("**SARIMA:**")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                p = st.selectbox("p (AR)", [0, 1, 2, 3], 1)
-            with col2:
-                d = st.selectbox("d (I)", [0, 1, 2], 1)
-            with col3:
-                q = st.selectbox("q (MA)", [0, 1, 2, 3], 1)
-            parametros['arima_params'] = (p, d, q)
+            # ==================== ARIMA PARAMETERS ====================
+            if modelo_arima:
+                st.markdown("---")
+                st.markdown("**SARIMA:**")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    p = st.selectbox("p (AR)", [0, 1, 2, 3], 1)
+                with col2:
+                    d = st.selectbox("d (I)", [0, 1, 2], 1)
+                with col3:
+                    q = st.selectbox("q (MA)", [0, 1, 2, 3], 1)
+                parametros['arima_params'] = (p, d, q)
         
         st.markdown("---")       
         
-        return uploaded_file, modelo_media, modelo_suavizacao, modelo_arima, parametros
+        return uploaded_file, modelo_media, modelo_suavizacao, modelo_arima, parametros, usar_preestablecidos
 
 
 def mostrar_info_carga(data_handler):
@@ -939,6 +945,20 @@ def mostrar_info_carga(data_handler):
             st.dataframe(df.head(15), use_container_width=True)
 
 
+# def extraer_valores_unicos(df_resultado, customer_col, product_code_col):
+#     """Extract unique values for filters"""
+    
+#     customers = []
+#     product_codes = []
+    
+#     if customer_col and customer_col in df_resultado.columns:
+#         customers = sorted([str(x) for x in df_resultado[customer_col].dropna().unique().tolist()])
+    
+#     if product_code_col and product_code_col in df_resultado.columns:
+#         product_codes = sorted([str(x) for x in df_resultado[product_col].dropna().unique().tolist()])
+    
+#     return customers, product_codes
+
 def extraer_valores_unicos(df_resultado, customer_col, product_code_col):
     """Extract unique values for filters"""
     
@@ -949,6 +969,7 @@ def extraer_valores_unicos(df_resultado, customer_col, product_code_col):
         customers = sorted([str(x) for x in df_resultado[customer_col].dropna().unique().tolist()])
     
     if product_code_col and product_code_col in df_resultado.columns:
+        # ✅ CORREGIDO: product_code_col (antes decía product_col)
         product_codes = sorted([str(x) for x in df_resultado[product_code_col].dropna().unique().tolist()])
     
     return customers, product_codes
@@ -1115,7 +1136,7 @@ def mostrar_resultados(resultados):
     st.subheader("🔍 Global filters")
     st.markdown("*Apply filters to all models and update the consolidated chart*")
     
-    filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 1])
+    filter_col1, filter_col2 = st.columns(2)
     
     with filter_col1:
         if len(customers_list) > 0:
@@ -1142,8 +1163,6 @@ def mostrar_resultados(resultados):
         else:
             selected_models = []
             st.info("ℹ️ No product models found in results")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
     
     df_filtered_dict = {}
     total_products_filtered = 0
@@ -1285,7 +1304,8 @@ def mostrar_pantalla_bienvenida():
 def main():
     """Main application function"""
     
-    uploaded_file, modelo_media, modelo_suavizacao, modelo_arima, parametros = configurar_sidebar()
+    # Get sidebar configurations (NOW includes usar_preestablecidos)
+    uploaded_file, modelo_media, modelo_suavizacao, modelo_arima, parametros, usar_preestablecidos = configurar_sidebar()
     
     if not uploaded_file:
         mostrar_pantalla_bienvenida()
@@ -1310,7 +1330,8 @@ def main():
     
     mostrar_info_carga(data_handler)
     
-    if not any([modelo_media, modelo_suavizacao, modelo_arima]):
+    # Validation: Only check if models selected when NOT using presets
+    if not usar_preestablecidos and not any([modelo_media, modelo_suavizacao, modelo_arima]):
         st.warning("⚠️ Please select at least one model to execute.")
         return
     
@@ -1324,18 +1345,28 @@ def main():
                     parametros
                 )
                 
-                modelos_ejecutar = {
-                    'media_movil': modelo_media,
-                    'suavizacao_exponencial': modelo_suavizacao,
-                    'arima': modelo_arima
-                }
-                
-                resultados = processor.ejecutar_forecast(modelos_ejecutar)
+                # CONDITIONAL EXECUTION: Preset vs Manual
+                if usar_preestablecidos:
+                    # PRESET MODE (TODO: Implement in next step)
+                    st.info("Using preset models...")
+                    st.warning("⚠️ Preset execution not yet implemented - Coming soon!")
+                    resultados = None
+                    
+                else:
+                    # MANUAL MODE (Original flow)
+                    modelos_ejecutar = {
+                        'media_movil': modelo_media,
+                        'suavizacao_exponencial': modelo_suavizacao,
+                        'arima': modelo_arima
+                    }
+                    
+                    resultados = processor.ejecutar_forecast(modelos_ejecutar)
                 
                 if resultados:
                     st.session_state.resultados = resultados
                 else:
-                    st.error("❌ Could not generate results. Please verify input data.")
+                    if not usar_preestablecidos:
+                        st.error("❌ Could not generate results. Please verify input data.")
                     
             except Exception as e:
                 st.error(f"❌ Error during processing: {str(e)}")
