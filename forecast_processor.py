@@ -3853,13 +3853,366 @@ class ForecastProcessor:
 
 
 
+    # def _execute_single_arima(self, idx: int, row: pd.Series,
+    #                      historical_series: pd.Series, datos: Dict) -> np.ndarray:
+    #     """
+    #     Execute ARIMA for a single product
+    #     COMPLETE LOGIC: Replicates ARIMAModel exactly with fallbacks
+    #     UPDATED: NO growth factors applied - model handles trend internally
+    #     UPDATED: Optimized ARIMA parameters for better forecasting
+    #     """
+        
+    #     try:
+    #         from statsmodels.tsa.statespace.sarimax import SARIMAX
+    #         from statsmodels.tsa.arima.model import ARIMA as SimpleARIMA
+    #     except ImportError:
+    #         return np.full(self.forecast_months, np.nan)
+        
+    #     forecast_values = np.full(self.forecast_months, np.nan)
+        
+    #     # Clean series
+    #     clean_series = historical_series.dropna()
+    #     clean_series = clean_series[clean_series >= 0]
+        
+    #     if len(clean_series) < 24:
+    #         return forecast_values
+        
+    #     # OPTIMIZED ARIMA PARAMETERS:
+    #     # Changed from (0,1,1) to (1,1,1) - adds AR component for better learning
+    #     # This allows the model to use recent values, not just differences
+    #     arima_params = self.parametros.get('arima_params', (0, 1, 1))
+        
+    #     # Seasonal parameters remain stable: (0,1,1,12)
+    #     seasonal_params = self.parametros.get('seasonal_params', (1, 1, 0, 12))
+        
+    #     method_used = None
+        
+    #     # METHOD 1: Try SARIMA
+    #     try:
+    #         model = SARIMAX(
+    #             clean_series,
+    #             order=arima_params,
+    #             seasonal_order=seasonal_params,
+    #             enforce_stationarity=False,
+    #             enforce_invertibility=False
+    #         )
+            
+    #         fitted = model.fit(disp=False, maxiter=100, method='lbfgs')
+    #         forecast = fitted.forecast(steps=self.forecast_months)
+            
+    #         # Convert to numpy array
+    #         if isinstance(forecast, pd.Series):
+    #             forecast_values = forecast.values
+    #         else:
+    #             forecast_values = forecast
+            
+    #         method_used = "SARIMA"
+        
+    #     except Exception as e:
+    #         # METHOD 2: Try Simple ARIMA (no seasonality)
+    #         try:
+    #             simple_model = SimpleARIMA(
+    #                 clean_series,
+    #                 order=arima_params,
+    #                 enforce_stationarity=False,
+    #                 enforce_invertibility=False
+    #             )
+                
+    #             simple_fitted = simple_model.fit()
+    #             forecast = simple_fitted.forecast(steps=self.forecast_months)
+                
+    #             if isinstance(forecast, pd.Series):
+    #                 forecast_values = forecast.values
+    #             else:
+    #                 forecast_values = forecast
+                
+    #             method_used = "Simple_ARIMA"
+            
+    #         except Exception as e2:
+    #             # METHOD 3: Trend-based fallback (LAST RESORT)
+    #             try:
+    #                 recent = clean_series.iloc[-12:] if len(clean_series) >= 12 else clean_series
+    #                 x = np.arange(len(recent))
+    #                 y = recent.values
+    #                 z = np.polyfit(x, y, 1)
+    #                 trend = z[0]
+    #                 base = y[-1]
+                    
+    #                 # Generate base forecast
+    #                 forecast_values = np.array([max(0, base + trend * (i + 1)) for i in range(self.forecast_months)])
+    #                 method_used = "Trend"
+                    
+    #                 # Cap extreme values for Trend fallback
+    #                 historical_max = clean_series.max()
+    #                 historical_mean = clean_series.mean()
+    #                 cap = min(max(historical_max * 15, historical_mean * 20), 1e6)
+                    
+    #                 for i in range(len(forecast_values)):
+    #                     if pd.notna(forecast_values[i]):
+    #                         value = float(forecast_values[i])
+                            
+    #                         # Cap extreme values
+    #                         value = min(value, cap)
+    #                         value = max(0, value)
+                            
+    #                         # Final validation
+    #                         if value < 1e10:
+    #                             forecast_values[i] = value
+    #                         else:
+    #                             forecast_values[i] = np.nan
+                    
+    #                 return forecast_values
+                
+    #             except Exception as e3:
+    #                 # ALL METHODS FAILED: Return NaN
+    #                 return np.full(self.forecast_months, np.nan)
+        
+    #     # Cap extreme values (for SARIMA and Simple ARIMA)
+    #     historical_max = clean_series.max()
+    #     historical_mean = clean_series.mean()
+        
+    #     # ADJUSTED CAP: More flexible based on historical volatility
+    #     cap = min(max(historical_max * 15, historical_mean * 20), 1e6)
+        
+    #     for i in range(len(forecast_values)):
+    #         if pd.notna(forecast_values[i]):
+    #             value = float(forecast_values[i])
+                
+    #             # Cap extreme values
+    #             value = min(value, cap)
+    #             value = max(0, value)
+                
+    #             # Final validation
+    #             if value < 1e10:
+    #                 forecast_values[i] = value
+    #             else:
+    #                 forecast_values[i] = np.nan
+        
+    #     return forecast_values
+
+
+
+
+    # def _execute_single_arima(self, idx: int, row: pd.Series,
+    #                      historical_series: pd.Series, datos: Dict) -> np.ndarray:
+    #     """
+    #     Execute ARIMA for a single product
+    #     COMPLETE LOGIC: Replicates ARIMAModel exactly with fallbacks
+    #     UPDATED: NO growth factors applied - model handles trend internally
+    #     UPDATED: Optimized ARIMA parameters for better forecasting
+    #     UPDATED: Peak smoothing applied to reduce volatility
+    #     """
+        
+    #     try:
+    #         from statsmodels.tsa.statespace.sarimax import SARIMAX
+    #         from statsmodels.tsa.arima.model import ARIMA as SimpleARIMA
+    #     except ImportError:
+    #         return np.full(self.forecast_months, np.nan)
+        
+    #     forecast_values = np.full(self.forecast_months, np.nan)
+        
+    #     # Clean series
+    #     clean_series = historical_series.dropna()
+    #     clean_series = clean_series[clean_series >= 0]
+        
+    #     if len(clean_series) < 24:
+    #         return forecast_values
+        
+    #     # OPTIMIZED ARIMA PARAMETERS:
+    #     # Changed from (0,1,1) to (1,1,1) - adds AR component for better learning
+    #     # This allows the model to use recent values, not just differences
+    #     arima_params = self.parametros.get('arima_params', (0, 1, 1))
+        
+    #     # Seasonal parameters remain stable: (0,1,1,12)
+    #     seasonal_params = self.parametros.get('seasonal_params', (1, 1, 0, 12))
+        
+    #     # SMOOTHING CONTROL: User can enable/disable
+    #     apply_smoothing = self.parametros.get('smooth_peaks', True)  # Default: enabled
+    #     smoothing_window = self.parametros.get('smoothing_window', 3)  # Default: 3-month MA
+        
+    #     # DAMPENING CONTROL: Reduce volatility in distant months
+    #     apply_dampening = self.parametros.get('apply_dampening', True)  # Default: enabled
+    #     dampening_factor = self.parametros.get('dampening_factor', 0.95)  # Default: 5% reduction per month
+        
+    #     method_used = None
+        
+    #     # METHOD 1: Try SARIMA
+    #     try:
+    #         model = SARIMAX(
+    #             clean_series,
+    #             order=arima_params,
+    #             seasonal_order=seasonal_params,
+    #             enforce_stationarity=False,
+    #             enforce_invertibility=False
+    #         )
+            
+    #         fitted = model.fit(disp=False, maxiter=100, method='lbfgs')
+    #         forecast = fitted.forecast(steps=self.forecast_months)
+            
+    #         # Convert to numpy array
+    #         if isinstance(forecast, pd.Series):
+    #             forecast_values = forecast.values
+    #         else:
+    #             forecast_values = forecast
+            
+    #         method_used = "SARIMA"
+        
+    #     except Exception as e:
+    #         # METHOD 2: Try Simple ARIMA (no seasonality)
+    #         try:
+    #             simple_model = SimpleARIMA(
+    #                 clean_series,
+    #                 order=arima_params,
+    #                 enforce_stationarity=False,
+    #                 enforce_invertibility=False
+    #             )
+                
+    #             simple_fitted = simple_model.fit()
+    #             forecast = simple_fitted.forecast(steps=self.forecast_months)
+                
+    #             if isinstance(forecast, pd.Series):
+    #                 forecast_values = forecast.values
+    #             else:
+    #                 forecast_values = forecast
+                
+    #             method_used = "Simple_ARIMA"
+            
+    #         except Exception as e2:
+    #             # METHOD 3: Trend-based fallback (LAST RESORT)
+    #             try:
+    #                 recent = clean_series.iloc[-12:] if len(clean_series) >= 12 else clean_series
+    #                 x = np.arange(len(recent))
+    #                 y = recent.values
+    #                 z = np.polyfit(x, y, 1)
+    #                 trend = z[0]
+    #                 base = y[-1]
+                    
+    #                 # Generate base forecast
+    #                 forecast_values = np.array([max(0, base + trend * (i + 1)) for i in range(self.forecast_months)])
+    #                 method_used = "Trend"
+                    
+    #                 # Cap extreme values for Trend fallback
+    #                 historical_max = clean_series.max()
+    #                 historical_mean = clean_series.mean()
+    #                 cap = min(max(historical_max * 12, historical_mean * 16), 1e6)  # More conservative
+                    
+    #                 for i in range(len(forecast_values)):
+    #                     if pd.notna(forecast_values[i]):
+    #                         value = float(forecast_values[i])
+                            
+    #                         # Cap extreme values
+    #                         value = min(value, cap)
+    #                         value = max(0, value)
+                            
+    #                         # Final validation
+    #                         if value < 1e10:
+    #                             forecast_values[i] = value
+    #                         else:
+    #                             forecast_values[i] = np.nan
+                    
+    #                 return forecast_values
+                
+    #             except Exception as e3:
+    #                 # ALL METHODS FAILED: Return NaN
+    #                 return np.full(self.forecast_months, np.nan)
+        
+    #     # ============================================================
+    #     # PEAK SMOOTHING: Apply to SARIMA and Simple ARIMA
+    #     # ============================================================
+        
+    #     if apply_smoothing and method_used in ["SARIMA", "Simple_ARIMA"]:
+    #         # Apply moving average smoothing to reduce peaks
+    #         smoothed_values = np.full_like(forecast_values, np.nan)
+            
+    #         for i in range(len(forecast_values)):
+    #             if pd.notna(forecast_values[i]):
+    #                 # Calculate window indices
+    #                 start_idx = max(0, i - smoothing_window + 1)
+    #                 end_idx = i + 1
+                    
+    #                 # Get window values (including historical if at start)
+    #                 window_values = []
+                    
+    #                 # If at the beginning, include last historical values
+    #                 if i < smoothing_window - 1:
+    #                     historical_tail = clean_series.iloc[-(smoothing_window - i - 1):].values
+    #                     window_values.extend(historical_tail)
+                    
+    #                 # Add forecast values in window
+    #                 window_values.extend(forecast_values[start_idx:end_idx])
+                    
+    #                 # Calculate smoothed value (mean of window)
+    #                 window_values = [v for v in window_values if pd.notna(v)]
+    #                 if len(window_values) > 0:
+    #                     smoothed_values[i] = np.mean(window_values)
+            
+    #         # Replace with smoothed values
+    #         forecast_values = smoothed_values
+        
+    #     # ============================================================
+    #     # DAMPENING: Reduce volatility progressively
+    #     # ============================================================
+        
+    #     if apply_dampening and method_used in ["SARIMA", "Simple_ARIMA"]:
+    #         # Calculate baseline (mean of last 12 historical months)
+    #         baseline = clean_series.iloc[-12:].mean() if len(clean_series) >= 12 else clean_series.mean()
+            
+    #         for i in range(len(forecast_values)):
+    #             if pd.notna(forecast_values[i]):
+    #                 # Apply progressive dampening: values converge towards baseline
+    #                 # Dampening increases with distance (month 0 = 0%, month 17 = ~60%)
+    #                 dampening_strength = 1 - (dampening_factor ** (i + 1))
+                    
+    #                 # Blend forecast with baseline
+    #                 forecast_values[i] = forecast_values[i] * (1 - dampening_strength * 0.3) + baseline * (dampening_strength * 0.3)
+        
+    #     # ============================================================
+    #     # CAP EXTREME VALUES (more conservative)
+    #     # ============================================================
+        
+    #     historical_max = clean_series.max()
+    #     historical_mean = clean_series.mean()
+        
+    #     # ADJUSTED CAP: More conservative (12x max instead of 15x)
+    #     cap = min(max(historical_max * 12, historical_mean * 16), 1e6)
+        
+    #     for i in range(len(forecast_values)):
+    #         if pd.notna(forecast_values[i]):
+    #             value = float(forecast_values[i])
+                
+    #             # Cap extreme values
+    #             value = min(value, cap)
+    #             value = max(0, value)
+                
+    #             # Final validation
+    #             if value < 1e10:
+    #                 forecast_values[i] = value
+    #             else:
+    #                 forecast_values[i] = np.nan
+        
+    #     return forecast_values
+
+
+
+
+
+
+
+
     def _execute_single_arima(self, idx: int, row: pd.Series,
                          historical_series: pd.Series, datos: Dict) -> np.ndarray:
         """
         Execute ARIMA for a single product
-        COMPLETE LOGIC: Replicates ARIMAModel exactly with fallbacks
-        UPDATED: NO growth factors applied - model handles trend internally
-        UPDATED: Optimized ARIMA parameters for better forecasting
+        
+        MODEL: SARIMA(1,1,1)(1,1,0)[12] with peak smoothing
+        
+        Configuration:
+        - Non-seasonal: (p=1, d=1, q=1) - learns from recent values
+        - Seasonal: (P=1, D=1, Q=0, s=12) - captures yearly patterns
+        - Smoothing: 3-month moving average
+        - Dampening: 95% factor (progressive convergence to baseline)
+        - Cap: 12x historical max (conservative)
+        - No growth factors (model handles trend internally)
         """
         
         try:
@@ -3877,17 +4230,22 @@ class ForecastProcessor:
         if len(clean_series) < 24:
             return forecast_values
         
-        # OPTIMIZED ARIMA PARAMETERS:
-        # Changed from (0,1,1) to (1,1,1) - adds AR component for better learning
-        # This allows the model to use recent values, not just differences
+        # OPTIMAL ARIMA PARAMETERS
+        # User can override, but these are recommended for balanced forecasting
         arima_params = self.parametros.get('arima_params', (1, 1, 1))
+        seasonal_params = self.parametros.get('seasonal_params', (1, 1, 0, 12))
         
-        # Seasonal parameters remain stable: (0,1,1,12)
-        seasonal_params = self.parametros.get('seasonal_params', (0, 1, 1, 12))
+        # SMOOTHING CONTROLS
+        apply_smoothing = self.parametros.get('smooth_peaks', True)
+        smoothing_window = self.parametros.get('smoothing_window', 3)
+        
+        # DAMPENING CONTROLS
+        apply_dampening = self.parametros.get('apply_dampening', True)
+        dampening_factor = self.parametros.get('dampening_factor', 0.95)
         
         method_used = None
         
-        # METHOD 1: Try SARIMA
+        # METHOD 1: Try SARIMA (primary method)
         try:
             model = SARIMAX(
                 clean_series,
@@ -3909,7 +4267,7 @@ class ForecastProcessor:
             method_used = "SARIMA"
         
         except Exception as e:
-            # METHOD 2: Try Simple ARIMA (no seasonality)
+            # METHOD 2: Fallback to Simple ARIMA (no seasonality)
             try:
                 simple_model = SimpleARIMA(
                     clean_series,
@@ -3929,7 +4287,7 @@ class ForecastProcessor:
                 method_used = "Simple_ARIMA"
             
             except Exception as e2:
-                # METHOD 3: Trend-based fallback (LAST RESORT)
+                # METHOD 3: Trend-based fallback (last resort)
                 try:
                     recent = clean_series.iloc[-12:] if len(clean_series) >= 12 else clean_series
                     x = np.arange(len(recent))
@@ -3942,20 +4300,17 @@ class ForecastProcessor:
                     forecast_values = np.array([max(0, base + trend * (i + 1)) for i in range(self.forecast_months)])
                     method_used = "Trend"
                     
-                    # Cap extreme values for Trend fallback
+                    # Apply same cap and validation as main methods
                     historical_max = clean_series.max()
                     historical_mean = clean_series.mean()
-                    cap = min(max(historical_max * 15, historical_mean * 20), 1e6)
+                    cap = min(max(historical_max * 12, historical_mean * 16), 1e6)
                     
                     for i in range(len(forecast_values)):
                         if pd.notna(forecast_values[i]):
                             value = float(forecast_values[i])
-                            
-                            # Cap extreme values
                             value = min(value, cap)
                             value = max(0, value)
                             
-                            # Final validation
                             if value < 1e10:
                                 forecast_values[i] = value
                             else:
@@ -3964,21 +4319,75 @@ class ForecastProcessor:
                     return forecast_values
                 
                 except Exception as e3:
-                    # ALL METHODS FAILED: Return NaN
+                    # All methods failed: return NaN
                     return np.full(self.forecast_months, np.nan)
         
-        # Cap extreme values (for SARIMA and Simple ARIMA)
+        # ============================================================
+        # SMOOTHING: Apply moving average to reduce peaks
+        # ============================================================
+        
+        if apply_smoothing and method_used in ["SARIMA", "Simple_ARIMA"]:
+            smoothed_values = np.full_like(forecast_values, np.nan)
+            
+            for i in range(len(forecast_values)):
+                if pd.notna(forecast_values[i]):
+                    # Calculate window indices
+                    start_idx = max(0, i - smoothing_window + 1)
+                    end_idx = i + 1
+                    
+                    # Collect window values
+                    window_values = []
+                    
+                    # Include historical tail at the start
+                    if i < smoothing_window - 1:
+                        historical_tail = clean_series.iloc[-(smoothing_window - i - 1):].values
+                        window_values.extend(historical_tail)
+                    
+                    # Add forecast values in window
+                    window_values.extend(forecast_values[start_idx:end_idx])
+                    
+                    # Calculate smoothed value (mean of window)
+                    window_values = [v for v in window_values if pd.notna(v)]
+                    if len(window_values) > 0:
+                        smoothed_values[i] = np.mean(window_values)
+            
+            # Replace with smoothed values
+            forecast_values = smoothed_values
+        
+        # ============================================================
+        # DAMPENING: Progressive convergence to baseline
+        # ============================================================
+        
+        if apply_dampening and method_used in ["SARIMA", "Simple_ARIMA"]:
+            # Calculate baseline (mean of last 12 months)
+            baseline = clean_series.iloc[-12:].mean() if len(clean_series) >= 12 else clean_series.mean()
+            
+            for i in range(len(forecast_values)):
+                if pd.notna(forecast_values[i]):
+                    # Progressive dampening: increases with distance
+                    # Month 1: ~5% dampening, Month 18: ~30% dampening
+                    dampening_strength = 1 - (dampening_factor ** (i + 1))
+                    
+                    # Blend forecast with baseline
+                    # Max 30% blend to avoid over-smoothing
+                    blend_ratio = dampening_strength * 0.3
+                    forecast_values[i] = forecast_values[i] * (1 - blend_ratio) + baseline * blend_ratio
+        
+        # ============================================================
+        # CAP: Conservative limit on extreme values
+        # ============================================================
+        
         historical_max = clean_series.max()
         historical_mean = clean_series.mean()
         
-        # ADJUSTED CAP: More flexible based on historical volatility
-        cap = min(max(historical_max * 15, historical_mean * 20), 1e6)
+        # Conservative cap: 12x max OR 16x mean (whichever is higher)
+        cap = min(max(historical_max * 12, historical_mean * 16), 1e6)
         
         for i in range(len(forecast_values)):
             if pd.notna(forecast_values[i]):
                 value = float(forecast_values[i])
                 
-                # Cap extreme values
+                # Apply cap
                 value = min(value, cap)
                 value = max(0, value)
                 
