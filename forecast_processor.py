@@ -2915,14 +2915,14 @@ class ForecastProcessor:
         
         # Execute Moving Average
         if modelos_ejecutar.get('media_movil', False):
-            with st.spinner("📈 Executing Moving Average..."):
+            with st.spinner("Executing Moving Average..."):
                 start_time = time.time()
                 resultados['media_movil'] = self.moving_average_model.execute(datos_preparados)
                 resultados['media_movil']['metadata']['execution_time'] = time.time() - start_time
         
         # Execute Exponential Smoothing
         if modelos_ejecutar.get('suavizacao_exponencial', False):
-            with st.spinner("📊 Executing Exponential Smoothing..."):
+            with st.spinner("Executing Exponential Smoothing..."):
                 start_time = time.time()
                 # Pass Moving Average results for series extension
                 resultados['suavizacao_exponencial'] = self.exponential_smoothing_model.execute(
@@ -2933,7 +2933,7 @@ class ForecastProcessor:
         
         # Execute ARIMA
         if modelos_ejecutar.get('arima', False):
-            with st.spinner("🔬 Executing SARIMA..."):
+            with st.spinner("Executing SARIMA..."):
                 start_time = time.time()
                 resultados['arima'] = self.arima_model.execute(datos_preparados)
                 resultados['arima']['metadata']['execution_time'] = time.time() - start_time
