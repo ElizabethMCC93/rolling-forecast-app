@@ -1,6 +1,7 @@
 # """
 # SARIMA Forecasting Model - ULTRA ROBUST version
 # FIXED: forecast_values indexing issue
+# UPDATED: Removed premature "Não calcula" check - now handles month-by-month
 # """
 # import pandas as pd
 # import numpy as np
@@ -105,12 +106,19 @@
 #                     print(f"  Row: {idx}")
 #                     print(f"{'='*80}\n")
                 
-#                 # Check "Não calcula"
-#                 if self.processor._has_no_calc_in_any_month(customer, product_model, product_class, datos['forecast_dates']):
-#                     skipped_no_calc += 1
-#                     continue
+#                 # REMOVED: Premature "Não calcula" check
+#                 # NOTE: SARIMA uses full historical series and doesn't need month-by-month logic
+#                 # The individual models (Moving Average) already handle "Não calcula" per month
+#                 # Skipping entire products here was causing too many to be ignored (70% skipped!)
+#                 #
+#                 # OLD CODE (COMMENTED OUT):
+#                 # if self.processor._has_no_calc_in_any_month(customer, product_model, product_class, datos['forecast_dates']):
+#                 #     skipped_no_calc += 1
+#                 #     if is_debug_target:
+#                 #         print(f"  ❌ SKIPPED: Has 'Não calcula' in at least one month\n{'='*80}\n")
+#                 #     continue
                 
-#                 # Get logic
+#                 # Get logic (kept for compatibility, but SARIMA doesn't use it month-by-month)
 #                 calc_base, p2p_model, _ = self.processor._get_logic_for_product_cached(
 #                     customer, product_class, datos['forecast_dates'][0]
 #                 )
@@ -353,12 +361,11 @@
 
 
 
-
-
 """
 SARIMA Forecasting Model - ULTRA ROBUST version
 FIXED: forecast_values indexing issue
 UPDATED: Removed premature "Não calcula" check - now handles month-by-month
+UPDATED: Trend fallback applies same validations as SARIMA/Simple ARIMA
 """
 import pandas as pd
 import numpy as np
@@ -462,18 +469,6 @@ class ARIMAModel:
                     print(f"  Model: {product_model}, Customer: {customer}, Class: {product_class}")
                     print(f"  Row: {idx}")
                     print(f"{'='*80}\n")
-                
-                # REMOVED: Premature "Não calcula" check
-                # NOTE: SARIMA uses full historical series and doesn't need month-by-month logic
-                # The individual models (Moving Average) already handle "Não calcula" per month
-                # Skipping entire products here was causing too many to be ignored (70% skipped!)
-                #
-                # OLD CODE (COMMENTED OUT):
-                # if self.processor._has_no_calc_in_any_month(customer, product_model, product_class, datos['forecast_dates']):
-                #     skipped_no_calc += 1
-                #     if is_debug_target:
-                #         print(f"  ❌ SKIPPED: Has 'Não calcula' in at least one month\n{'='*80}\n")
-                #     continue
                 
                 # Get logic (kept for compatibility, but SARIMA doesn't use it month-by-month)
                 calc_base, p2p_model, _ = self.processor._get_logic_for_product_cached(
@@ -605,12 +600,29 @@ class ARIMAModel:
                             trend = z[0]
                             base = y[-1]
                             
+                            # Generate base forecast
                             forecast_values = np.array([max(0, base + trend * (i + 1)) for i in range(18)])
                             method_used = "Trend"
                             fallback_count += 1
                             
+                            # CRITICAL: Apply same validations as SARIMA/Simple ARIMA
+                            historical_max = clean_series.max()
+                            cap = min(historical_max * 10, self.MAX_FORECAST_VALUE)
+                            
+                            # Apply cap and final validation to Trend forecast
+                            for i in range(len(forecast_values)):
+                                if pd.notna(forecast_values[i]):
+                                    value = float(forecast_values[i])
+                                    value = min(value, cap)
+                                    value = max(0, value)
+                                    
+                                    if value < 1e10:
+                                        forecast_values[i] = value
+                                    else:
+                                        forecast_values[i] = np.nan
+                            
                             if is_debug_target:
-                                print(f"  ✅ Trend-based successful")
+                                print(f"  ✅ Trend-based successful (with validations)")
                                 print(f"     Trend: {trend:.2f}/month, Base: {base:.2f}")
                                 print(f"     First 3 values: {list(forecast_values[:3])}")
                         
@@ -626,18 +638,27 @@ class ARIMAModel:
                     if not isinstance(forecast_values, np.ndarray):
                         forecast_values = np.array(forecast_values)
                     
-                    # Cap extreme values
-                    historical_max = clean_series.max()
-                    cap = min(historical_max * 10, self.MAX_FORECAST_VALUE)
-                    
-                    for i, forecast_date in enumerate(datos['forecast_dates']):
-                        if i < len(forecast_values):
-                            # CRITICAL FIX: Direct array indexing (not pandas)
-                            value = float(forecast_values[i])
-                            value = min(value, cap)
-                            value = max(0, value)
-                            forecast_arrays[forecast_date][idx] = value
-                            cells_updated += 1
+                    # For SARIMA and Simple ARIMA, apply validations here
+                    # (Trend already has validations applied above)
+                    if method_used in ["SARIMA", "Simple_ARIMA"]:
+                        historical_max = clean_series.max()
+                        cap = min(historical_max * 10, self.MAX_FORECAST_VALUE)
+                        
+                        for i, forecast_date in enumerate(datos['forecast_dates']):
+                            if i < len(forecast_values):
+                                value = float(forecast_values[i])
+                                value = min(value, cap)
+                                value = max(0, value)
+                                
+                                if value < 1e10:
+                                    forecast_arrays[forecast_date][idx] = value
+                                    cells_updated += 1
+                    else:
+                        # Trend: just apply (already validated)
+                        for i, forecast_date in enumerate(datos['forecast_dates']):
+                            if i < len(forecast_values) and pd.notna(forecast_values[i]):
+                                forecast_arrays[forecast_date][idx] = forecast_values[i]
+                                cells_updated += 1
                     
                     processed_products += 1
                     
@@ -686,7 +707,8 @@ class ARIMAModel:
                     'fallback_methods': 'Simple ARIMA → Trend',
                     'processed_products': processed_products,
                     'error_count': error_count,
-                    'fallback_count': fallback_count
+                    'fallback_count': fallback_count,
+                    'no_growth_factors': True
                 },
                 'metadata': {
                     'n_products_processed': processed_products,

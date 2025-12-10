@@ -2250,7 +2250,7 @@ def mostrar_resultados_preset(resultado_consolidado):
     
     # Export
     st.markdown("---")
-    st.subheader("💾 Export Data")
+    st.subheader("💾 Export data")
     
     df_to_export = df_filtered if not df_filtered.empty else df_resultado
     

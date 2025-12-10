@@ -1,5 +1,6 @@
 # """
 # Exponential Smoothing (Holt-Winters) - FIXED for insufficient data
+# UPDATED: Removed premature "Não calcula" check - now processes more products
 # """
 # import pandas as pd
 # import numpy as np
@@ -88,12 +89,17 @@
 #                     print(f"  Row: {idx}")
 #                     print(f"{'='*80}\n")
                 
-#                 # Check if product has "Não calcula"
-#                 if self.processor._has_no_calc_in_any_month(customer, product_model, product_class, datos['forecast_dates']):
-#                     skipped_no_calc += 1
-#                     if is_debug_target:
-#                         print(f"  ⏭️ SKIPPED: Has 'Não calcula'\n")
-#                     continue
+#                 # REMOVED: Premature "Não calcula" check
+#                 # NOTE: Holt-Winters uses full historical series and doesn't need month-by-month logic
+#                 # Skipping entire products here was causing too many to be ignored
+#                 # This model processes the entire time series statistically, not month-by-month with rules
+#                 #
+#                 # OLD CODE (COMMENTED OUT):
+#                 # if self.processor._has_no_calc_in_any_month(customer, product_model, product_class, datos['forecast_dates']):
+#                 #     skipped_no_calc += 1
+#                 #     if is_debug_target:
+#                 #         print(f"  ⏭️ SKIPPED: Has 'Não calcula'\n")
+#                 #     continue
                 
 #                 # Get logic (use first forecast month)
 #                 calc_base, p2p_model, launch_month = self.processor._get_logic_for_product_cached(
@@ -284,15 +290,10 @@
 
 
 
-
-
-
-
-
-
 """
 Exponential Smoothing (Holt-Winters) - FIXED for insufficient data
 UPDATED: Removed premature "Não calcula" check - now processes more products
+UPDATED: NO fallbacks - returns NaN when model fails
 """
 import pandas as pd
 import numpy as np
@@ -380,18 +381,6 @@ class ExponentialSmoothingModel:
                     print(f"  Model: {product_model}, Customer: {customer}, Class: {product_class}")
                     print(f"  Row: {idx}")
                     print(f"{'='*80}\n")
-                
-                # REMOVED: Premature "Não calcula" check
-                # NOTE: Holt-Winters uses full historical series and doesn't need month-by-month logic
-                # Skipping entire products here was causing too many to be ignored
-                # This model processes the entire time series statistically, not month-by-month with rules
-                #
-                # OLD CODE (COMMENTED OUT):
-                # if self.processor._has_no_calc_in_any_month(customer, product_model, product_class, datos['forecast_dates']):
-                #     skipped_no_calc += 1
-                #     if is_debug_target:
-                #         print(f"  ⏭️ SKIPPED: Has 'Não calcula'\n")
-                #     continue
                 
                 # Get logic (use first forecast month)
                 calc_base, p2p_model, launch_month = self.processor._get_logic_for_product_cached(
@@ -488,10 +477,22 @@ class ExponentialSmoothingModel:
                                     print(f"    ✅ Model fitted successfully")
                                     print(f"    Forecast sample (first 3): {list(forecast_values[:3])}")
                                 
+                                # Cap extreme values
+                                historical_max = clean_series.max()
+                                cap = min(historical_max * 10, 1e6)
+                                
                                 for i, forecast_date in enumerate(datos['forecast_dates']):
                                     if i < len(forecast_values):
-                                        forecast_arrays[forecast_date][idx] = max(0, forecast_values[i])
-                                        cells_updated += 1
+                                        value = float(forecast_values[i])
+                                        
+                                        # Cap extreme values
+                                        value = min(value, cap)
+                                        value = max(0, value)
+                                        
+                                        # Final validation
+                                        if value < 1e10:
+                                            forecast_arrays[forecast_date][idx] = value
+                                            cells_updated += 1
                                 
                                 processed_products += 1
                                 
@@ -502,33 +503,13 @@ class ExponentialSmoothingModel:
                                     print(f"    ❌ After cleaning, only {len(clean_series)} values - INSUFFICIENT")
                         else:
                             if is_debug_target:
-                                print(f"    ⚠️ statsmodels NOT available - using simplified method")
-                            
-                            # Simplified fallback (accepts zeros)
-                            last_value = historical_series.dropna().iloc[-1]
-                            if pd.notna(last_value) and last_value >= 0:
-                                for forecast_date in datos['forecast_dates']:
-                                    forecast_arrays[forecast_date][idx] = max(0, last_value)
-                                    cells_updated += 1
-                                processed_products += 1
-                                
-                                if is_debug_target:
-                                    print(f"    ✅ Simplified forecast applied: {last_value}")
+                                print(f"    ⚠️ statsmodels NOT available - skipping (no fallback)")
                     
                     except Exception as e:
                         if is_debug_target:
                             print(f"    ❌ ERROR during model fitting: {str(e)}")
-                        
-                        # Fallback to average (accepts zeros)
-                        avg_value = historical_series[historical_series >= 0].mean()
-                        if pd.notna(avg_value):
-                            for forecast_date in datos['forecast_dates']:
-                                forecast_arrays[forecast_date][idx] = max(0, avg_value)
-                                cells_updated += 1
-                            processed_products += 1
-                            
-                            if is_debug_target:
-                                print(f"    ⚠️ Fallback to average: {avg_value}")
+                        # NO FALLBACK: If Holt-Winters fails, leave as NaN
+                        # This prevents generating arbitrary values that don't follow the model logic
                 else:
                     if is_debug_target:
                         print(f"    ❌ INSUFFICIENT DATA - Skipping product")
@@ -545,14 +526,15 @@ class ExponentialSmoothingModel:
                 'dataframe': df_result,
                 'celulas_actualizadas': cells_updated,
                 'parametros': {
-                    'method': 'holt_winters' if STATSMODELS_AVAILABLE else 'simple_exponential',
+                    'method': 'holt_winters' if STATSMODELS_AVAILABLE else 'none',
                     'seasonal_periods': 12,
                     'reference_product_logic': True,
                     'skipped_no_calc': skipped_no_calc,
                     'extended_series_count': extended_series_count,
                     'optimized': True,
                     'accepts_zero_values': True,
-                    'extends_with_moving_avg': True
+                    'extends_with_moving_avg': True,
+                    'no_fallbacks': True
                 },
                 'metadata': {
                     'n_products_processed': processed_products,

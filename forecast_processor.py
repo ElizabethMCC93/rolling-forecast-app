@@ -2915,14 +2915,14 @@ class ForecastProcessor:
         
         # Execute Moving Average
         if modelos_ejecutar.get('media_movil', False):
-            with st.spinner("Executing Moving Average..."):
+            with st.spinner("Executing moving average..."):
                 start_time = time.time()
                 resultados['media_movil'] = self.moving_average_model.execute(datos_preparados)
                 resultados['media_movil']['metadata']['execution_time'] = time.time() - start_time
         
         # Execute Exponential Smoothing
         if modelos_ejecutar.get('suavizacao_exponencial', False):
-            with st.spinner("Executing Exponential Smoothing..."):
+            with st.spinner("Executing exponential smoothing..."):
                 start_time = time.time()
                 # Pass Moving Average results for series extension
                 resultados['suavizacao_exponencial'] = self.exponential_smoothing_model.execute(
@@ -3375,11 +3375,100 @@ class ForecastProcessor:
             }
         }
     
+    # def _execute_single_moving_average(self, idx: int, row: pd.Series, 
+    #                               historical_series: pd.Series, datos: Dict) -> np.ndarray:
+    #     """
+    #     Execute moving average for a single product
+    #     COMPLETE LOGIC: Replicates MovingAverageModel exactly
+    #     """
+        
+    #     col_names = datos['col_names']
+    #     customer = row.get(col_names.get('main_customer'))
+    #     product_class = row.get(col_names.get('main_class'))
+        
+    #     forecast_values = np.full(self.forecast_months, np.nan)
+        
+    #     # We'll build a temporary forecast array to enable lookups
+    #     temp_forecast = {}
+        
+    #     for i, forecast_date in enumerate(self.forecast_dates):
+            
+    #         # Get logic for this month
+    #         calc_base, p2p_model, launch_month = self._get_logic_for_product_cached(
+    #             customer, product_class, forecast_date
+    #         )
+            
+    #         # Skip if "Não calcula"
+    #         if calc_base == self.CALC_BASE_NO_CALC:
+    #             continue
+            
+    #         # Handle launch dependent
+    #         if calc_base == self.CALC_BASE_LAUNCH_DEPENDENT:
+    #             if pd.notna(launch_month):
+    #                 launch_date = pd.to_datetime(launch_month)
+    #                 if forecast_date < launch_date:
+    #                     continue
+            
+    #         # Determine series to use
+    #         if calc_base in [self.CALC_BASE_P2P, self.CALC_BASE_LAUNCH_DEPENDENT]:
+    #             if pd.notna(p2p_model) and p2p_model != '':
+    #                 series_to_use = self._get_p2p_series_cached(customer, p2p_model, datos)
+    #             else:
+    #                 series_to_use = historical_series
+    #         else:
+    #             series_to_use = historical_series
+            
+    #         if len(series_to_use) == 0 or series_to_use.isna().all():
+    #             continue
+            
+    #         # CRITICAL: Use seasonal window (3 months)
+    #         same_month_last_year = forecast_date - relativedelta(years=1)
+    #         month_after_1 = same_month_last_year + relativedelta(months=1)
+    #         month_after_2 = same_month_last_year + relativedelta(months=2)
+            
+    #         seasonal_values = []
+            
+    #         for target_date in [same_month_last_year, month_after_1, month_after_2]:
+    #             val = None
+                
+    #             # Priority 1: Historical
+    #             if target_date in series_to_use.index:
+    #                 val = series_to_use[target_date]
+    #             # Priority 2: Already calculated forecast
+    #             elif target_date in temp_forecast:
+    #                 val = temp_forecast[target_date]
+                
+    #             if pd.notna(val) and val >= 0:
+    #                 seasonal_values.append(float(val))
+            
+    #         if len(seasonal_values) > 0:
+    #             seasonal_avg = np.mean(seasonal_values)
+    #             growth_factor = self._get_growth_factor_cached(customer, forecast_date.year)
+    #             forecasted_value = seasonal_avg * growth_factor
+    #             forecasted_value = max(0, forecasted_value)
+                
+    #             forecast_values[i] = forecasted_value
+    #             temp_forecast[forecast_date] = forecasted_value
+    #         else:
+    #             # Fallback: simple average
+    #             simple_avg = series_to_use[series_to_use >= 0].mean()
+    #             if pd.notna(simple_avg):
+    #                 growth_factor = self._get_growth_factor_cached(customer, forecast_date.year)
+    #                 forecasted_value = simple_avg * growth_factor
+    #                 forecasted_value = max(0, forecasted_value)
+                    
+    #                 forecast_values[i] = forecasted_value
+    #                 temp_forecast[forecast_date] = forecasted_value
+        
+    #     return forecast_values
+
+
     def _execute_single_moving_average(self, idx: int, row: pd.Series, 
                                   historical_series: pd.Series, datos: Dict) -> np.ndarray:
         """
         Execute moving average for a single product
         COMPLETE LOGIC: Replicates MovingAverageModel exactly
+        UPDATED: NO FALLBACK - If no seasonal data, leave as NaN (empty)
         """
         
         col_names = datos['col_names']
@@ -3450,23 +3539,239 @@ class ForecastProcessor:
                 forecast_values[i] = forecasted_value
                 temp_forecast[forecast_date] = forecasted_value
             else:
-                # Fallback: simple average
-                simple_avg = series_to_use[series_to_use >= 0].mean()
-                if pd.notna(simple_avg):
-                    growth_factor = self._get_growth_factor_cached(customer, forecast_date.year)
-                    forecasted_value = simple_avg * growth_factor
-                    forecasted_value = max(0, forecasted_value)
-                    
-                    forecast_values[i] = forecasted_value
-                    temp_forecast[forecast_date] = forecasted_value
+                # NO FALLBACK: If no seasonal data, leave as NaN (empty)
+                # This prevents repeating arbitrary averages across all months
+                # NaN will be rendered as empty cells in Excel/CSV
+                forecast_values[i] = np.nan
+                # Do NOT add to temp_forecast - this prevents propagation
         
         return forecast_values
 
+
+
+
+
+    # def _execute_single_exponential_smoothing(self, idx: int, row: pd.Series,
+    #                                         historical_series: pd.Series, datos: Dict) -> np.ndarray:
+    #     """
+    #     Execute exponential smoothing for a single product
+    #     COMPLETE LOGIC: Replicates ExponentialSmoothingModel exactly
+    #     """
+        
+    #     try:
+    #         from statsmodels.tsa.holtwinters import ExponentialSmoothing
+    #     except ImportError:
+    #         return np.full(self.forecast_months, np.nan)
+        
+    #     forecast_values = np.full(self.forecast_months, np.nan)
+        
+    #     # Clean series
+    #     clean_series = historical_series.dropna()
+    #     clean_series = clean_series[clean_series >= 0]
+        
+    #     if len(clean_series) < 24:
+    #         return forecast_values
+        
+    #     try:
+    #         # CRITICAL: Use SAME parameters as original model
+    #         # Check if user provided parameters, otherwise use defaults
+    #         alpha = self.parametros.get('alpha', 0.3)
+    #         beta = self.parametros.get('beta', 0.1)
+    #         gamma = self.parametros.get('gamma', 0.1)
+    #         seasonal_type = self.parametros.get('seasonal_type', 'add')
+            
+    #         # Fit model
+    #         model = ExponentialSmoothing(
+    #             clean_series,
+    #             seasonal_periods=12,
+    #             trend='add',
+    #             seasonal=seasonal_type
+    #         )
+            
+    #         fitted = model.fit(
+    #             smoothing_level=alpha,
+    #             smoothing_trend=beta,
+    #             smoothing_seasonal=gamma,
+    #             optimized=False
+    #         )
+            
+    #         # Generate forecast
+    #         forecast = fitted.forecast(steps=self.forecast_months)
+            
+    #         # CRITICAL: Convert to numpy array
+    #         if isinstance(forecast, pd.Series):
+    #             forecast_values_temp = forecast.values
+    #         else:
+    #             forecast_values_temp = forecast
+            
+    #         # Apply growth factors and validate
+    #         col_names = datos['col_names']
+    #         customer = row.get(col_names.get('main_customer'))
+            
+    #         historical_max = clean_series.max()
+    #         cap = min(historical_max * 10, 1e6)  # Same as ARIMA
+            
+    #         for i, forecast_date in enumerate(self.forecast_dates):
+    #             if i < len(forecast_values_temp) and pd.notna(forecast_values_temp[i]):
+    #                 value = float(forecast_values_temp[i])
+                    
+    #                 # Apply growth factor
+    #                 growth_factor = self._get_growth_factor_cached(customer, forecast_date.year)
+                    
+    #                 # Validate growth factor
+    #                 if growth_factor < 0.1 or growth_factor > 10.0:
+    #                     growth_factor = 1.0
+                    
+    #                 value = value * growth_factor
+                    
+    #                 # Cap extreme values
+    #                 value = min(value, cap)
+    #                 value = max(0, value)
+                    
+    #                 # Final validation
+    #                 if value < 1e10:  # Reject extreme values
+    #                     forecast_values[i] = value
+        
+    #     except Exception as e:
+    #         # Fallback: use average
+    #         avg_value = clean_series.mean()
+    #         if pd.notna(avg_value) and avg_value >= 0:
+    #             for i in range(self.forecast_months):
+    #                 forecast_values[i] = max(0, avg_value)
+        
+    #     return forecast_values
+
+    # def _execute_single_arima(self, idx: int, row: pd.Series,
+    #                         historical_series: pd.Series, datos: Dict) -> np.ndarray:
+    #     """
+    #     Execute ARIMA for a single product
+    #     COMPLETE LOGIC: Replicates ARIMAModel exactly with fallbacks
+    #     """
+        
+    #     try:
+    #         from statsmodels.tsa.statespace.sarimax import SARIMAX
+    #         from statsmodels.tsa.arima.model import ARIMA as SimpleARIMA
+    #     except ImportError:
+    #         return np.full(self.forecast_months, np.nan)
+        
+    #     forecast_values = np.full(self.forecast_months, np.nan)
+        
+    #     # Clean series
+    #     clean_series = historical_series.dropna()
+    #     clean_series = clean_series[clean_series >= 0]
+        
+    #     if len(clean_series) < 24:
+    #         return forecast_values
+        
+    #     # CRITICAL: Use CORRECT default parameters
+    #     arima_params = self.parametros.get('arima_params', (0, 1, 1))
+    #     seasonal_params = self.parametros.get('seasonal_params', (0, 1, 1, 12))
+        
+    #     method_used = None
+        
+    #     # METHOD 1: Try SARIMA
+    #     try:
+    #         model = SARIMAX(
+    #             clean_series,
+    #             order=arima_params,
+    #             seasonal_order=seasonal_params,
+    #             enforce_stationarity=False,
+    #             enforce_invertibility=False
+    #         )
+            
+    #         fitted = model.fit(disp=False, maxiter=100, method='lbfgs')
+    #         forecast = fitted.forecast(steps=self.forecast_months)
+            
+    #         # Convert to numpy array
+    #         if isinstance(forecast, pd.Series):
+    #             forecast_values = forecast.values
+    #         else:
+    #             forecast_values = forecast
+            
+    #         method_used = "SARIMA"
+        
+    #     except Exception as e:
+    #         # METHOD 2: Try Simple ARIMA (no seasonality)
+    #         try:
+    #             simple_model = SimpleARIMA(
+    #                 clean_series,
+    #                 order=arima_params,
+    #                 enforce_stationarity=False,
+    #                 enforce_invertibility=False
+    #             )
+                
+    #             simple_fitted = simple_model.fit()
+    #             forecast = simple_fitted.forecast(steps=self.forecast_months)
+                
+    #             if isinstance(forecast, pd.Series):
+    #                 forecast_values = forecast.values
+    #             else:
+    #                 forecast_values = forecast
+                
+    #             method_used = "Simple_ARIMA"
+            
+    #         except Exception as e2:
+    #             # METHOD 3: Trend-based fallback
+    #             try:
+    #                 recent = clean_series.iloc[-12:] if len(clean_series) >= 12 else clean_series
+    #                 x = np.arange(len(recent))
+    #                 y = recent.values
+    #                 z = np.polyfit(x, y, 1)
+    #                 trend = z[0]
+    #                 base = y[-1]
+                    
+    #                 forecast_values = np.array([max(0, base + trend * (i + 1)) for i in range(self.forecast_months)])
+    #                 method_used = "Trend"
+                
+    #             except Exception as e3:
+    #                 return np.full(self.forecast_months, np.nan)
+        
+    #     # Apply growth factors and cap extreme values
+    #     col_names = datos['col_names']
+    #     customer = row.get(col_names.get('main_customer'))
+        
+    #     historical_max = clean_series.max()
+    #     cap = min(historical_max * 10, 1e6)
+        
+    #     for i, forecast_date in enumerate(self.forecast_dates):
+    #         if i < len(forecast_values) and pd.notna(forecast_values[i]):
+    #             value = float(forecast_values[i])
+                
+    #             # Apply growth factor
+    #             growth_factor = self._get_growth_factor_cached(customer, forecast_date.year)
+                
+    #             # Validate growth factor
+    #             if growth_factor < 0.1 or growth_factor > 10.0:
+    #                 growth_factor = 1.0
+                
+    #             value = value * growth_factor
+                
+    #             # Cap extreme values
+    #             value = min(value, cap)
+    #             value = max(0, value)
+                
+    #             # Final validation
+    #             if value < 1e10:
+    #                 forecast_values[i] = value
+    #             else:
+    #                 forecast_values[i] = np.nan
+        
+    #     return forecast_values
+
+
+
+
+
+
+
+
     def _execute_single_exponential_smoothing(self, idx: int, row: pd.Series,
-                                            historical_series: pd.Series, datos: Dict) -> np.ndarray:
+                                          historical_series: pd.Series, datos: Dict) -> np.ndarray:
         """
         Execute exponential smoothing for a single product
         COMPLETE LOGIC: Replicates ExponentialSmoothingModel exactly
+        UPDATED: NO FALLBACK to average - returns NaN if model fails
+        UPDATED: NO growth factors applied - model handles trend internally
         """
         
         try:
@@ -3515,25 +3820,13 @@ class ForecastProcessor:
             else:
                 forecast_values_temp = forecast
             
-            # Apply growth factors and validate
-            col_names = datos['col_names']
-            customer = row.get(col_names.get('main_customer'))
-            
+            # Validate and cap extreme values
             historical_max = clean_series.max()
             cap = min(historical_max * 10, 1e6)  # Same as ARIMA
             
             for i, forecast_date in enumerate(self.forecast_dates):
                 if i < len(forecast_values_temp) and pd.notna(forecast_values_temp[i]):
                     value = float(forecast_values_temp[i])
-                    
-                    # Apply growth factor
-                    growth_factor = self._get_growth_factor_cached(customer, forecast_date.year)
-                    
-                    # Validate growth factor
-                    if growth_factor < 0.1 or growth_factor > 10.0:
-                        growth_factor = 1.0
-                    
-                    value = value * growth_factor
                     
                     # Cap extreme values
                     value = min(value, cap)
@@ -3544,19 +3837,22 @@ class ForecastProcessor:
                         forecast_values[i] = value
         
         except Exception as e:
-            # Fallback: use average
-            avg_value = clean_series.mean()
-            if pd.notna(avg_value) and avg_value >= 0:
-                for i in range(self.forecast_months):
-                    forecast_values[i] = max(0, avg_value)
+            # NO FALLBACK: If Holt-Winters fails, return NaN
+            # This prevents generating arbitrary averages that don't follow the model logic
+            # NaN will be rendered as empty cells
+            pass
         
         return forecast_values
 
+
+
+
     def _execute_single_arima(self, idx: int, row: pd.Series,
-                            historical_series: pd.Series, datos: Dict) -> np.ndarray:
+                         historical_series: pd.Series, datos: Dict) -> np.ndarray:
         """
         Execute ARIMA for a single product
         COMPLETE LOGIC: Replicates ARIMAModel exactly with fallbacks
+        UPDATED: NO growth factors applied - model handles trend internally
         """
         
         try:
@@ -3622,7 +3918,7 @@ class ForecastProcessor:
                 method_used = "Simple_ARIMA"
             
             except Exception as e2:
-                # METHOD 3: Trend-based fallback
+                # METHOD 3: Trend-based fallback (LAST RESORT)
                 try:
                     recent = clean_series.iloc[-12:] if len(clean_series) >= 12 else clean_series
                     x = np.arange(len(recent))
@@ -3631,31 +3927,41 @@ class ForecastProcessor:
                     trend = z[0]
                     base = y[-1]
                     
+                    # Generate base forecast
                     forecast_values = np.array([max(0, base + trend * (i + 1)) for i in range(self.forecast_months)])
                     method_used = "Trend"
+                    
+                    # Cap extreme values for Trend fallback
+                    historical_max = clean_series.max()
+                    cap = min(historical_max * 10, 1e6)
+                    
+                    for i in range(len(forecast_values)):
+                        if pd.notna(forecast_values[i]):
+                            value = float(forecast_values[i])
+                            
+                            # Cap extreme values
+                            value = min(value, cap)
+                            value = max(0, value)
+                            
+                            # Final validation
+                            if value < 1e10:
+                                forecast_values[i] = value
+                            else:
+                                forecast_values[i] = np.nan
+                    
+                    return forecast_values
                 
                 except Exception as e3:
+                    # ALL METHODS FAILED: Return NaN
                     return np.full(self.forecast_months, np.nan)
         
-        # Apply growth factors and cap extreme values
-        col_names = datos['col_names']
-        customer = row.get(col_names.get('main_customer'))
-        
+        # Cap extreme values (for SARIMA and Simple ARIMA)
         historical_max = clean_series.max()
         cap = min(historical_max * 10, 1e6)
         
-        for i, forecast_date in enumerate(self.forecast_dates):
-            if i < len(forecast_values) and pd.notna(forecast_values[i]):
+        for i in range(len(forecast_values)):
+            if pd.notna(forecast_values[i]):
                 value = float(forecast_values[i])
-                
-                # Apply growth factor
-                growth_factor = self._get_growth_factor_cached(customer, forecast_date.year)
-                
-                # Validate growth factor
-                if growth_factor < 0.1 or growth_factor > 10.0:
-                    growth_factor = 1.0
-                
-                value = value * growth_factor
                 
                 # Cap extreme values
                 value = min(value, cap)

@@ -1,5 +1,6 @@
 # """
 # Moving Average (Seasonal) Forecasting Model - FIXED for zeros and future months
+# UPDATED: Removed premature "Não calcula" check - now handles month-by-month
 # """
 # import pandas as pd
 # import numpy as np
@@ -79,10 +80,15 @@
 #                     print(f"  Row: {idx}")
 #                     print(f"{'='*80}\n")
                 
-#                 # Check if product has "Não calcula" in ANY month
-#                 if self.processor._has_no_calc_in_any_month(customer, product_model, product_class, datos['forecast_dates']):
-#                     skipped_no_calc += 1
-#                     continue
+#                 # REMOVED: Premature "Não calcula" check
+#                 # NOTE: We now handle "Não calcula" MONTH-BY-MONTH in the forecast loop below (line ~130)
+#                 # Skipping entire products here was causing too many to be ignored
+#                 # The logic already checks calc_base for EACH month individually
+#                 #
+#                 # OLD CODE (COMMENTED OUT):
+#                 # if self.processor._has_no_calc_in_any_month(customer, product_model, product_class, datos['forecast_dates']):
+#                 #     skipped_no_calc += 1
+#                 #     continue
                 
 #                 # Get start date from column H
 #                 start_date = None
@@ -115,6 +121,12 @@
 #                     if is_debug_target and i < 5:
 #                         print(f"    Calc Base: {calc_base}")
 #                         print(f"    P2P: {p2p_model if pd.notna(p2p_model) else 'None'}")
+                    
+#                     # MONTH-BY-MONTH LOGIC: Handle "Não calcula" for this specific month
+#                     if calc_base == self.processor.CALC_BASE_NO_CALC:
+#                         if is_debug_target and i < 5:
+#                             print(f"    SKIP: Não calcula\n")
+#                         continue
                     
 #                     # Handle launch dependent
 #                     if calc_base == self.processor.CALC_BASE_LAUNCH_DEPENDENT:
@@ -282,13 +294,10 @@
 
 
 
-
-
-
-
 """
 Moving Average (Seasonal) Forecasting Model - FIXED for zeros and future months
 UPDATED: Removed premature "Não calcula" check - now handles month-by-month
+UPDATED: NO FALLBACK to average - returns NaN when no seasonal data
 """
 import pandas as pd
 import numpy as np
@@ -367,16 +376,6 @@ class MovingAverageModel:
                     print(f"  Model: {product_model}, Customer: {customer}, Class: {product_class}")
                     print(f"  Row: {idx}")
                     print(f"{'='*80}\n")
-                
-                # REMOVED: Premature "Não calcula" check
-                # NOTE: We now handle "Não calcula" MONTH-BY-MONTH in the forecast loop below (line ~130)
-                # Skipping entire products here was causing too many to be ignored
-                # The logic already checks calc_base for EACH month individually
-                #
-                # OLD CODE (COMMENTED OUT):
-                # if self.processor._has_no_calc_in_any_month(customer, product_model, product_class, datos['forecast_dates']):
-                #     skipped_no_calc += 1
-                #     continue
                 
                 # Get start date from column H
                 start_date = None
@@ -460,17 +459,11 @@ class MovingAverageModel:
                                 if is_debug_target and i < 5:
                                     print(f"    Result: {seasonal_avg:.2f} × {growth_factor} = {forecasted_value:.2f}\n")
                             else:
-                                # FIXED: Fallback accepts zeros (val >= 0 instead of val > 0)
-                                simple_avg = series_to_use[series_to_use >= 0].mean()
-                                if pd.notna(simple_avg):
-                                    year = forecast_date.year
-                                    growth_factor = self.processor._get_growth_factor_cached(customer, year)
-                                    forecasted_value = simple_avg * growth_factor
-                                    forecast_arrays[forecast_date][idx] = max(0, forecasted_value)
-                                    cells_updated += 1
-                                    
-                                    if is_debug_target and i < 5:
-                                        print(f"    FALLBACK: {simple_avg:.2f} × {growth_factor} = {forecasted_value:.2f}\n")
+                                # NO FALLBACK: If no seasonal data, leave as NaN (empty)
+                                # This prevents repeating arbitrary averages across all months
+                                # NaN will be rendered as empty cells in Excel/CSV
+                                if is_debug_target and i < 5:
+                                    print(f"    NO DATA: Leaving as NaN (empty)\n")
                 
                 processed_products += 1
             
@@ -490,7 +483,8 @@ class MovingAverageModel:
                     'skipped_no_calc': skipped_no_calc,
                     'optimized': True,
                     'accepts_zero_values': True,
-                    'uses_forecast_for_future_months': True
+                    'uses_forecast_for_future_months': True,
+                    'no_fallback_to_average': True
                 },
                 'metadata': {
                     'n_products_processed': processed_products,
