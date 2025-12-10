@@ -3550,12 +3550,13 @@ class ForecastProcessor:
 
 
 
-
     # def _execute_single_exponential_smoothing(self, idx: int, row: pd.Series,
-    #                                         historical_series: pd.Series, datos: Dict) -> np.ndarray:
+    #                                       historical_series: pd.Series, datos: Dict) -> np.ndarray:
     #     """
     #     Execute exponential smoothing for a single product
     #     COMPLETE LOGIC: Replicates ExponentialSmoothingModel exactly
+    #     UPDATED: NO FALLBACK to average - returns NaN if model fails
+    #     UPDATED: NO growth factors applied - model handles trend internally
     #     """
         
     #     try:
@@ -3604,25 +3605,13 @@ class ForecastProcessor:
     #         else:
     #             forecast_values_temp = forecast
             
-    #         # Apply growth factors and validate
-    #         col_names = datos['col_names']
-    #         customer = row.get(col_names.get('main_customer'))
-            
+    #         # Validate and cap extreme values
     #         historical_max = clean_series.max()
     #         cap = min(historical_max * 10, 1e6)  # Same as ARIMA
             
     #         for i, forecast_date in enumerate(self.forecast_dates):
     #             if i < len(forecast_values_temp) and pd.notna(forecast_values_temp[i]):
     #                 value = float(forecast_values_temp[i])
-                    
-    #                 # Apply growth factor
-    #                 growth_factor = self._get_growth_factor_cached(customer, forecast_date.year)
-                    
-    #                 # Validate growth factor
-    #                 if growth_factor < 0.1 or growth_factor > 10.0:
-    #                     growth_factor = 1.0
-                    
-    #                 value = value * growth_factor
                     
     #                 # Cap extreme values
     #                 value = min(value, cap)
@@ -3633,19 +3622,22 @@ class ForecastProcessor:
     #                     forecast_values[i] = value
         
     #     except Exception as e:
-    #         # Fallback: use average
-    #         avg_value = clean_series.mean()
-    #         if pd.notna(avg_value) and avg_value >= 0:
-    #             for i in range(self.forecast_months):
-    #                 forecast_values[i] = max(0, avg_value)
+    #         # NO FALLBACK: If Holt-Winters fails, return NaN
+    #         # This prevents generating arbitrary averages that don't follow the model logic
+    #         # NaN will be rendered as empty cells
+    #         pass
         
     #     return forecast_values
 
+
+
+
     # def _execute_single_arima(self, idx: int, row: pd.Series,
-    #                         historical_series: pd.Series, datos: Dict) -> np.ndarray:
+    #                      historical_series: pd.Series, datos: Dict) -> np.ndarray:
     #     """
     #     Execute ARIMA for a single product
     #     COMPLETE LOGIC: Replicates ARIMAModel exactly with fallbacks
+    #     UPDATED: NO growth factors applied - model handles trend internally
     #     """
         
     #     try:
@@ -3711,7 +3703,7 @@ class ForecastProcessor:
     #             method_used = "Simple_ARIMA"
             
     #         except Exception as e2:
-    #             # METHOD 3: Trend-based fallback
+    #             # METHOD 3: Trend-based fallback (LAST RESORT)
     #             try:
     #                 recent = clean_series.iloc[-12:] if len(clean_series) >= 12 else clean_series
     #                 x = np.arange(len(recent))
@@ -3720,31 +3712,41 @@ class ForecastProcessor:
     #                 trend = z[0]
     #                 base = y[-1]
                     
+    #                 # Generate base forecast
     #                 forecast_values = np.array([max(0, base + trend * (i + 1)) for i in range(self.forecast_months)])
     #                 method_used = "Trend"
+                    
+    #                 # Cap extreme values for Trend fallback
+    #                 historical_max = clean_series.max()
+    #                 cap = min(historical_max * 10, 1e6)
+                    
+    #                 for i in range(len(forecast_values)):
+    #                     if pd.notna(forecast_values[i]):
+    #                         value = float(forecast_values[i])
+                            
+    #                         # Cap extreme values
+    #                         value = min(value, cap)
+    #                         value = max(0, value)
+                            
+    #                         # Final validation
+    #                         if value < 1e10:
+    #                             forecast_values[i] = value
+    #                         else:
+    #                             forecast_values[i] = np.nan
+                    
+    #                 return forecast_values
                 
     #             except Exception as e3:
+    #                 # ALL METHODS FAILED: Return NaN
     #                 return np.full(self.forecast_months, np.nan)
         
-    #     # Apply growth factors and cap extreme values
-    #     col_names = datos['col_names']
-    #     customer = row.get(col_names.get('main_customer'))
-        
+    #     # Cap extreme values (for SARIMA and Simple ARIMA)
     #     historical_max = clean_series.max()
     #     cap = min(historical_max * 10, 1e6)
         
-    #     for i, forecast_date in enumerate(self.forecast_dates):
-    #         if i < len(forecast_values) and pd.notna(forecast_values[i]):
+    #     for i in range(len(forecast_values)):
+    #         if pd.notna(forecast_values[i]):
     #             value = float(forecast_values[i])
-                
-    #             # Apply growth factor
-    #             growth_factor = self._get_growth_factor_cached(customer, forecast_date.year)
-                
-    #             # Validate growth factor
-    #             if growth_factor < 0.1 or growth_factor > 10.0:
-    #                 growth_factor = 1.0
-                
-    #             value = value * growth_factor
                 
     #             # Cap extreme values
     #             value = min(value, cap)
@@ -3764,7 +3766,6 @@ class ForecastProcessor:
 
 
 
-
     def _execute_single_exponential_smoothing(self, idx: int, row: pd.Series,
                                           historical_series: pd.Series, datos: Dict) -> np.ndarray:
         """
@@ -3772,6 +3773,7 @@ class ForecastProcessor:
         COMPLETE LOGIC: Replicates ExponentialSmoothingModel exactly
         UPDATED: NO FALLBACK to average - returns NaN if model fails
         UPDATED: NO growth factors applied - model handles trend internally
+        UPDATED: Optimized parameters for better trend/seasonality capture
         """
         
         try:
@@ -3789,11 +3791,11 @@ class ForecastProcessor:
             return forecast_values
         
         try:
-            # CRITICAL: Use SAME parameters as original model
-            # Check if user provided parameters, otherwise use defaults
-            alpha = self.parametros.get('alpha', 0.3)
-            beta = self.parametros.get('beta', 0.1)
-            gamma = self.parametros.get('gamma', 0.1)
+            # OPTIMIZED PARAMETERS: More responsive to trends and seasonality
+            # User can override these, but defaults are now more balanced
+            alpha = self.parametros.get('alpha', 0.2)    # Level: 0.2 (balanced - 80% history, 20% recent)
+            beta = self.parametros.get('beta', 0.15)     # Trend: 0.15 (captures trend better than 0.1)
+            gamma = self.parametros.get('gamma', 0.1)    # Seasonality: 0.1 (stable seasonal pattern)
             seasonal_type = self.parametros.get('seasonal_type', 'add')
             
             # Fit model
@@ -3822,7 +3824,11 @@ class ForecastProcessor:
             
             # Validate and cap extreme values
             historical_max = clean_series.max()
-            cap = min(historical_max * 10, 1e6)  # Same as ARIMA
+            historical_mean = clean_series.mean()
+            
+            # ADJUSTED CAP: More flexible based on historical volatility
+            # Allow up to 15x max OR 20x mean (whichever is higher), capped at 1e6
+            cap = min(max(historical_max * 15, historical_mean * 20), 1e6)
             
             for i, forecast_date in enumerate(self.forecast_dates):
                 if i < len(forecast_values_temp) and pd.notna(forecast_values_temp[i]):
@@ -3853,6 +3859,7 @@ class ForecastProcessor:
         Execute ARIMA for a single product
         COMPLETE LOGIC: Replicates ARIMAModel exactly with fallbacks
         UPDATED: NO growth factors applied - model handles trend internally
+        UPDATED: Optimized ARIMA parameters for better forecasting
         """
         
         try:
@@ -3870,8 +3877,12 @@ class ForecastProcessor:
         if len(clean_series) < 24:
             return forecast_values
         
-        # CRITICAL: Use CORRECT default parameters
-        arima_params = self.parametros.get('arima_params', (0, 1, 1))
+        # OPTIMIZED ARIMA PARAMETERS:
+        # Changed from (0,1,1) to (1,1,1) - adds AR component for better learning
+        # This allows the model to use recent values, not just differences
+        arima_params = self.parametros.get('arima_params', (1, 1, 1))
+        
+        # Seasonal parameters remain stable: (0,1,1,12)
         seasonal_params = self.parametros.get('seasonal_params', (0, 1, 1, 12))
         
         method_used = None
@@ -3933,7 +3944,8 @@ class ForecastProcessor:
                     
                     # Cap extreme values for Trend fallback
                     historical_max = clean_series.max()
-                    cap = min(historical_max * 10, 1e6)
+                    historical_mean = clean_series.mean()
+                    cap = min(max(historical_max * 15, historical_mean * 20), 1e6)
                     
                     for i in range(len(forecast_values)):
                         if pd.notna(forecast_values[i]):
@@ -3957,7 +3969,10 @@ class ForecastProcessor:
         
         # Cap extreme values (for SARIMA and Simple ARIMA)
         historical_max = clean_series.max()
-        cap = min(historical_max * 10, 1e6)
+        historical_mean = clean_series.mean()
+        
+        # ADJUSTED CAP: More flexible based on historical volatility
+        cap = min(max(historical_max * 15, historical_mean * 20), 1e6)
         
         for i in range(len(forecast_values)):
             if pd.notna(forecast_values[i]):
