@@ -2246,7 +2246,7 @@ def mostrar_resultados_preset(resultado_consolidado):
         st.dataframe(df_display.head(100), use_container_width=True)
         
         if len(df_filtered) > 100:
-            st.info(f"📊 Showing first 100 of {len(df_filtered):,} products")
+            st.info(f"Showing first 100 of {len(df_filtered):,} products")
     
     # Export
     st.markdown("---")
