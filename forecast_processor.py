@@ -3793,9 +3793,12 @@ class ForecastProcessor:
         try:
             # OPTIMIZED PARAMETERS: More responsive to trends and seasonality
             # User can override these, but defaults are now more balanced
-            alpha = self.parametros.get('alpha', 0.2)    # Level: 0.2 (balanced - 80% history, 20% recent)
-            beta = self.parametros.get('beta', 0.15)     # Trend: 0.15 (captures trend better than 0.1)
-            gamma = self.parametros.get('gamma', 0.1)    # Seasonality: 0.1 (stable seasonal pattern)
+            # alpha = self.parametros.get('alpha', 0.2)    # Level: 0.2 (balanced - 80% history, 20% recent)
+            # beta = self.parametros.get('beta', 0.15)     # Trend: 0.15 (captures trend better than 0.1)
+            # gamma = self.parametros.get('gamma', 0.1)    # Seasonality: 0.1 (stable seasonal pattern)
+            alpha = self.parametros.get('alpha', 0.1)    
+            beta = self.parametros.get('beta', 0.0)     
+            gamma = self.parametros.get('gamma', 0.1)    
             seasonal_type = self.parametros.get('seasonal_type', 'add')
             
             # Fit model
@@ -4232,7 +4235,8 @@ class ForecastProcessor:
         
         # OPTIMAL ARIMA PARAMETERS
         # User can override, but these are recommended for balanced forecasting
-        arima_params = self.parametros.get('arima_params', (1, 1, 1))
+        # arima_params = self.parametros.get('arima_params', (1, 1, 1))
+        arima_params = self.parametros.get('arima_params', (1, 0, 1))
         seasonal_params = self.parametros.get('seasonal_params', (1, 1, 0, 12))
         
         # SMOOTHING CONTROLS
