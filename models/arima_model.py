@@ -389,7 +389,8 @@ class ARIMAModel:
     DEBUG_TARGET_CUSTOMER = "ATACADO ESPECIALIZADO"
     
     # CRITICAL: Maximum reasonable forecast value (safety limit)
-    MAX_FORECAST_VALUE = 1e6  # 1 million
+    # MAX_FORECAST_VALUE = 1e6  # 1 million
+    MAX_FORECAST_VALUE = 1e8  # 1 million
     
     def __init__(self, processor):
         """Initialize model with reference to main processor"""
