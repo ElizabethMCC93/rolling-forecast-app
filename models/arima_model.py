@@ -411,8 +411,8 @@ class ARIMAModel:
             
             # CONSERVATIVE SARIMA parameters for stability
             # (0,1,1) x (0,1,1,12) - most stable
-            arima_params = self.processor.parametros.get('arima_params', (0, 1, 1))
-            seasonal_params = self.processor.parametros.get('seasonal_params', (0, 1, 1, 12))
+            arima_params = self.processor.parametros.get('arima_params', (2, 1, 2))
+            seasonal_params = self.processor.parametros.get('seasonal_params', (0, 1, 0, 12))
             
             print(f"📊 SARIMA Parameters: order={arima_params}, seasonal={seasonal_params}")
             
