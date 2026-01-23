@@ -3530,7 +3530,9 @@ class ForecastProcessor:
             
             # ADJUSTED CAP: More flexible based on historical volatility
             # Allow up to 15x max OR 20x mean (whichever is higher), capped at 1e6
-            cap = min(max(historical_max * 15, historical_mean * 20), 1e6)
+            # cap = min(max(historical_max * 15, historical_mean * 20), 1e6)
+            # cap = min(max(historical_max * 15, historical_mean * 20), 1e6)
+            cap = min(max(historical_max * 50, historical_mean * 65), 1e8)
             
             for i, forecast_date in enumerate(self.forecast_dates):
                 if i < len(forecast_values_temp) and pd.notna(forecast_values_temp[i]):
@@ -3740,8 +3742,8 @@ class ForecastProcessor:
         historical_max = clean_series.max()
         historical_mean = clean_series.mean()
         
-        # Conservative cap: 12x max OR 16x mean (whichever is higher)
-        cap = min(max(historical_max * 12, historical_mean * 16), 1e6)
+        # Conservative cap: 12x max OR 16x mean (whichever is higher)        
+        cap = min(max(historical_max * 50, historical_mean * 65), 1e8)
         
         for i in range(len(forecast_values)):
             if pd.notna(forecast_values[i]):
