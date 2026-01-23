@@ -3595,8 +3595,8 @@ class ForecastProcessor:
         # arima_params = self.parametros.get('arima_params', (1, 1, 1))
         # arima_params = self.parametros.get('arima_params', (1, 0, 1))
         # seasonal_params = self.parametros.get('seasonal_params', (1, 1, 0, 12))
-        arima_params = self.parametros.get('arima_params', (1, 1, 1))
-        seasonal_params = self.parametros.get('seasonal_params', (1, 1, 1, 12))
+        arima_params = self.parametros.get('arima_params', (2, 1, 2))
+        seasonal_params = self.parametros.get('seasonal_params', (0, 1, 0, 12))
         
         # SMOOTHING CONTROLS
         apply_smoothing = self.parametros.get('smooth_peaks', True)
