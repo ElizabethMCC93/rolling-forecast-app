@@ -1835,7 +1835,7 @@ def configurar_sidebar():
                 st.markdown("**SARIMA:**")
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    p = st.selectbox("p (AR)", [0, 1, 2, 3], 1)
+                    p = st.selectbox("p (AR)", [0, 1, 2, 3], 0)
                 with col2:
                     d = st.selectbox("d (I)", [0, 1, 2], 1)
                 with col3:
